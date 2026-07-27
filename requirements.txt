@@ -1,0 +1,22 @@
+# Minimal requirements for data ingestion pipeline
+# Install only what's needed to run the ingest_cli.py
+
+# Data Ingestion (Required)
+biopython>=1.83
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Optional: Uncomment when needed for GenAI analysis
+# anthropic>=0.31.0
+
+# Optional: Uncomment when building FastAPI server
+# fastapi>=0.110.0
+# uvicorn[standard]>=0.27.0
+# pydantic>=2.6.0
+
+# Optional: Uncomment for vector embeddings
+# sentence-transformers>=2.5.1
+
+# Optional: Uncomment for full ML stack
+# numpy>=1.26.4
+# scikit-learn>=1.4.0

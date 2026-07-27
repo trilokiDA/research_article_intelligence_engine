@@ -1,0 +1,55 @@
+{
+  "queries": [
+    {
+      "name": "Heat-Not-Burn",
+      "description": "Heated tobacco products (IQOS, HEETS, THS)",
+      "sources": {
+        "pubmed": {
+          "query": "(((eclipse OR accord OR \"Heatstick\" OR \"revo\") AND cigarette AND heat* NOT (resin OR column)) OR \"tobacco heating\"[Title/Abstract] OR \"heated cigarette*\"[Title/Abstract] OR \"electrically heated cigarette*\"[Title/Abstract] OR \"EHCSS\"[Title/Abstract] OR \"Electrically Heated Cigarette Smoking System*\"[Title/Abstract] OR \"heat* tobacco\"[Title/Abstract] OR \"tobacco heating cigarette*\"[Title/Abstract] OR \"EHCSS-K3\"[Title/Abstract] OR \"EHCSS-K6\"[Title/Abstract] OR \"heated tobacco\"[Title/Abstract] OR \"tobacco heating system\"[Title/Abstract] OR (\"heat-notburn\"[Title/Abstract] AND \"tobacco\"[Title/Abstract]) OR \"IQOS\"[Title/Abstract] OR \"HEETS\"[Title/Abstract] OR \"heatsticks*\"[Title/Abstract] OR (\"heat-not-burn\"[Title/Abstract] AND \"tobacco\"[Title/Abstract]) OR (\"HNB\"[Title/Abstract] AND \"tobacco\"[Title/Abstract]) OR (\"THS\"[Title/Abstract] AND \"tobacco\"[Title/Abstract]) OR (\"Lil\"[Title/Abstract] AND \"tobacco\"[Title/Abstract]) OR (\"TEEPS\"[Title/Abstract] AND \"tobacco\"[Title/Abstract])) OR (\"Modified risk tobacco product*\"[Title/Abstract]) OR (\"non-cigarette combustible*\"[Title/Abstract]) OR (\"non combusted\" AND cigarette[Title/Abstract]) OR (\"Risk continuum\"[Title/Abstract] AND \"tobacco\"[Title/Abstract]) OR (\"non combustible\" AND \"tobacco\"[Title/Abstract])"
+        },
+        "google_scholar": {
+          "query": "(\"heated cigarette*\") OR (\"tobacco heating\") OR (\"heated tobacco\") OR (\"tobacco heating system\") OR (\"heat-not-burn\" \"tobacco\") OR (\"IQOS\") OR (\"HEETS\") OR (\"heatsticks\") OR (\"heat not burn\" \"tobacco\") OR (\"THS\" \"tobacco\") OR (\"HNB\" \"tobacco\")",
+          "exclude_patents": true
+        }
+      }
+    },
+    {
+      "name": "E-Cigarettes",
+      "description": "Electronic cigarettes, vaping, ENDS",
+      "sources": {
+        "pubmed": {
+          "query": "((\"electronic cigarettes*\"[Title/Abstract]) OR (\"e-cigarettes*\"[Title/Abstract]) OR (\"electroniccigarettes*\"[Title/Abstract]) OR (\"EVALI\"[Title/Abstract]) OR (\"e vapor*\"[Title/Abstract]) OR (\"evapour*\"[Title/Abstract]) OR (\"ENDS\"[Title/Abstract] AND \"electronic delivery\"[Title/Abstract]) OR \"electronic delivery nicotine\"[Title/Abstract] OR (\"VNP\"[Title/Abstract] AND \"vaporized nicotine products*\"[Title/Abstract]))"
+        },
+        "google_scholar": {
+          "query": "(\"electronic cigarettes\") OR (\"e-cigarettes\") OR (\"vaping\") OR (\"e-vapor\")",
+          "exclude_patents": true
+        }
+      }
+    },
+    {
+      "name": "Nicotine-Pouch",
+      "description": "Nicotine pouches and related products",
+      "sources": {
+        "pubmed": {
+          "query": "\"Nicotine pouch*\"[Title/Abstract]"
+        },
+        "google_scholar": {
+          "query": "\"nicotine pouches\" OR \"nicotine pouch\""
+        }
+      }
+    },
+    {
+      "name": "Snus",
+      "description": "Swedish snus and smokeless tobacco",
+      "sources": {
+        "pubmed": {
+          "query": "\"snus\"[Title/Abstract] OR \"Swedish snus\"[Title/Abstract] OR \"smokeless tobacco\"[Title/Abstract]"
+        },
+        "google_scholar": {
+          "query": "(\"snus\" AND \"tobacco\") OR (\"Swedish snus\" AND \"tobacco\") OR (\"smokeless\" AND \"tobacco\")",
+          "exclude_patents": true
+        }
+      }
+    }
+  ]
+}
