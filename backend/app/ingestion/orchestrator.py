@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.ingestion.pubmed_connector import PubMedConnector
-from app.ingestion.crossref_connector import CrossrefConnector
+# from app.ingestion.crossref_connector import CrossrefConnector  # Disabled: CrossRef doesn't provide abstracts
 from app.ingestion.normalizer import DataNormalizer
 from app.db.database import get_db
 import json
@@ -31,15 +31,15 @@ class IngestionOrchestrator:
     def __init__(self):
         """Initialize orchestrator with all connectors."""
         self.pubmed = PubMedConnector()
-        self.crossref = CrossrefConnector()
+        # self.crossref = CrossrefConnector()  # Disabled: CrossRef doesn't provide abstracts
         self.normalizer = DataNormalizer()
 
-        print("[OK] Ingestion orchestrator initialized")
+        print("[OK] Ingestion orchestrator initialized (PubMed only)")
 
     def ingest_from_query(
         self,
         query: str,
-        sources: List[str] = ['pubmed', 'crossref'],
+        sources: List[str] = ['pubmed'],  # Only PubMed by default (CrossRef disabled - no abstracts)
         max_per_source: int = 100,
         date_range: Optional[Dict] = None
     ) -> Dict:
@@ -87,8 +87,11 @@ class IngestionOrchestrator:
             try:
                 if source == 'pubmed':
                     raw_articles = self._fetch_from_pubmed(query, max_per_source, date_range)
+                # elif source == 'crossref':
+                #     raw_articles = self._fetch_from_crossref(query, max_per_source, date_range)
                 elif source == 'crossref':
-                    raw_articles = self._fetch_from_crossref(query, max_per_source, date_range)
+                    print("[WARN]  CrossRef disabled - no abstracts available")
+                    raw_articles = []
                 elif source == 'google_scholar':
                     print("[WARN]  Google Scholar connector not implemented yet")
                     raw_articles = []
@@ -162,23 +165,24 @@ class IngestionOrchestrator:
 
         return []
 
-    def _fetch_from_crossref(
-        self,
-        query: str,
-        max_results: int,
-        date_range: Optional[Dict]
-    ) -> List[Dict]:
-        """Fetch articles from Crossref."""
-        filter_params = {}
-        if date_range:
-            filter_params['from-pub-date'] = date_range.get('from', '')
-            filter_params['until-pub-date'] = date_range.get('to', '')
-
-        return self.crossref.search_articles(
-            query=query,
-            max_results=max_results,
-            filter_params=filter_params if filter_params else None
-        )
+    # DISABLED: CrossRef doesn't provide abstracts
+    # def _fetch_from_crossref(
+    #     self,
+    #     query: str,
+    #     max_results: int,
+    #     date_range: Optional[Dict]
+    # ) -> List[Dict]:
+    #     """Fetch articles from Crossref."""
+    #     filter_params = {}
+    #     if date_range:
+    #         filter_params['from-pub-date'] = date_range.get('from', '')
+    #         filter_params['until-pub-date'] = date_range.get('to', '')
+    #
+    #     return self.crossref.search_articles(
+    #         query=query,
+    #         max_results=max_results,
+    #         filter_params=filter_params if filter_params else None
+    #     )
 
     def _store_articles(self, raw_articles: List[Dict]) -> tuple[int, int, int]:
         """
@@ -298,7 +302,7 @@ if __name__ == "__main__":
     # Ingest articles
     results = orchestrator.ingest_from_query(
         query="tobacco harm reduction",
-        sources=['pubmed', 'crossref'],
+        sources=['pubmed'],  # Only PubMed (CrossRef disabled)
         max_per_source=10,
         date_range={'from': '2024-01-01', 'to': '2024-12-31'}
     )

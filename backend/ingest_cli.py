@@ -3,9 +3,11 @@
 Command-line interface for article ingestion.
 
 Usage:
-    python ingest_cli.py search "tobacco harm reduction" --sources pubmed crossref --max 50
+    python ingest_cli.py search "tobacco harm reduction" --sources pubmed --max 50
     python ingest_cli.py stats
     python ingest_cli.py pending
+
+Note: CrossRef is disabled as it doesn't provide abstracts. Only PubMed is active.
 """
 import argparse
 import sys
@@ -188,7 +190,7 @@ def main():
         nargs='+',
         choices=['pubmed', 'crossref', 'google_scholar'],
         default=['pubmed'],
-        help='Sources to search (default: pubmed)'
+        help='Sources to search (default: pubmed, CrossRef disabled - no abstracts)'
     )
     topic_search_parser.add_argument(
         '--max',
@@ -213,7 +215,7 @@ def main():
         nargs='+',
         choices=['pubmed', 'crossref', 'google_scholar'],
         default=['pubmed'],
-        help='Sources to search (default: pubmed)'
+        help='Sources to search (default: pubmed, CrossRef disabled - no abstracts)'
     )
     search_parser.add_argument(
         '--max',
