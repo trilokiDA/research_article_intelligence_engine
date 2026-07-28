@@ -1,6 +1,14 @@
-# Tobacco Research Platform - Backend
+# Research Article Intelligence Engine
 
-Data ingestion pipeline for collecting scientific articles from PubMed, Crossref, and Google Scholar.
+AI-powered platform for collecting, analyzing, and summarizing scientific research articles.
+
+## Features
+
+- 📥 **Multi-Source Ingestion** - Collect articles from PubMed, Crossref, and Google Scholar
+- 🤖 **AI-Powered Analysis** - Automatic summarization and classification using Groq LLMs
+- 📊 **Structured Data** - Entity extraction, sentiment analysis, and categorization
+- 🔍 **Full-Text Search** - SQLite FTS5 for fast article search
+- 🎯 **Smart Filtering** - Only processes articles that need analysis
 
 ## Quick Start
 
@@ -51,9 +59,9 @@ This creates `data/articles.db` with the following tables:
 # Search PubMed for articles
 python ingest_cli.py search "tobacco harm reduction" \
     --sources pubmed \
-    --max 50 \
     --from-date 2024-01-01 \
-    --to-date 2024-12-31
+    --to-date 2024-12-31 \
+    --max 50
 
 # Search both PubMed and Crossref
 python ingest_cli.py search "electronic cigarettes youth" \
@@ -151,6 +159,62 @@ Show articles pending GenAI analysis.
 ```bash
 python ingest_cli.py pending [--limit LIMIT]
 ```
+
+## GenAI Pipeline
+
+### Setup
+
+1. **Get Groq API Key** from https://console.groq.com/keys (free tier available)
+
+2. **Add to .env file:**
+```bash
+GROQ_API_KEY=your-groq-api-key-here
+```
+
+3. **Run tests:**
+```bash
+python tests/test_genai.py
+```
+
+### Usage
+
+**Check pending articles:**
+```bash
+python backend/scripts/run_summarization.py --stats-only
+```
+
+**Process 10 articles (dry run):**
+```bash
+python backend/scripts/run_summarization.py --limit 10 --dry-run
+```
+
+**Process all pending articles:**
+```bash
+python backend/scripts/run_summarization.py
+```
+
+**Custom configuration:**
+```bash
+# Fast model, small batches
+python backend/scripts/run_summarization.py \
+    --model llama-3.1-8b-instant \
+    --batch-size 5 \
+    --delay 2.0 \
+    --limit 50
+```
+
+### Output
+
+Each article produces:
+- **Summary** - Plain-language summary with people-first language
+- **Entities** - Extracted topics (e-cigarettes, harm reduction, etc.)
+- **Category** - Research type (Clinical Studies, Epidemiology, etc.)
+- **Subject** - Broad subject area (HTPs, E-cigarettes, etc.)
+- **Sentiment** - THR sentiment (Positive, Negative, Neutral, Mixed)
+- **Country** - Study location
+- **Industry Affiliation** - If mentioned (PMI, JTI, BAT, etc.)
+
+See [docs/GENAI_PIPELINE.md](docs/GENAI_PIPELINE.md) for detailed documentation.
 
 ## Data Sources
 
