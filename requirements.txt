@@ -6,8 +6,15 @@ biopython>=1.83
 requests>=2.31.0
 python-dotenv>=1.0.0
 
-# Optional: Uncomment when needed for GenAI analysis
+# GenAI Analysis (Required for summarization)
+pydantic>=2.6.0
+langchain-core>=0.1.0
+langchain-groq>=0.0.1
+tqdm>=4.66.0
+
+# Optional: Uncomment when needed for additional GenAI features
 # anthropic>=0.31.0
+# langgraph>=0.0.1
 
 # Optional: Uncomment when building FastAPI server
 # fastapi>=0.110.0
