@@ -74,6 +74,7 @@ coverage.xml
 data/raw/
 data/processed/
 models/
+data/analysis
 
 # files
 *.csv

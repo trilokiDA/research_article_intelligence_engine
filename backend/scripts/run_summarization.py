@@ -27,11 +27,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Process all pending articles
+  # Process all pending articles (to JSON files - default)
   python backend/scripts/run_summarization.py
 
-  # Process only 10 articles
+  # Process only 10 articles to JSON files
   python backend/scripts/run_summarization.py --limit 10
+
+  # Process to database (old behavior)
+  python backend/scripts/run_summarization.py --limit 10 --output-format database
 
   # Dry run (don't save results)
   python backend/scripts/run_summarization.py --limit 5 --dry-run
@@ -41,6 +44,9 @@ Examples:
 
   # Custom batch size
   python backend/scripts/run_summarization.py --batch-size 5
+
+  # Custom analysis directory
+  python backend/scripts/run_summarization.py --analysis-dir /path/to/analysis
 
   # Show statistics only
   python backend/scripts/run_summarization.py --stats-only
@@ -79,6 +85,17 @@ Examples:
         action='store_true',
         help='Show statistics only, don\'t process'
     )
+    parser.add_argument(
+        '--output-format',
+        choices=['json', 'database'],
+        default='json',
+        help='Output format: json (file-based, default) or database (direct DB write)'
+    )
+    parser.add_argument(
+        '--analysis-dir',
+        default='data/analysis',
+        help='Base directory for JSON analysis files (default: data/analysis)'
+    )
 
     args = parser.parse_args()
 
@@ -116,7 +133,8 @@ Examples:
     pipeline = SummarizationPipeline(
         model_name=args.model,
         batch_size=args.batch_size,
-        delay_between_batches=args.delay
+        delay_between_batches=args.delay,
+        output_format=args.output_format
     )
 
     try:
