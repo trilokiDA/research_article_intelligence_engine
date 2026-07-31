@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
-from .schemas import Response
+from schemas import Response
 
 
 class AnalysisFileWriter:
@@ -32,7 +32,8 @@ class AnalysisFileWriter:
             base_dir: Base directory for analysis files
         """
         self.base_dir = Path(base_dir)
-        self.summarized_dir = self.base_dir / "summarized"
+        self.raw_dir = self.base_dir / "raw"  # NEW: raw outputs
+        self.summarized_dir = self.base_dir / "summarized"  # LEGACY: for backward compatibility
         self.evaluated_dir = self.base_dir / "evaluated"
         self.approved_dir = self.base_dir / "approved"
         self.reinfer_dir = self.base_dir / "reinfer"
@@ -44,6 +45,7 @@ class AnalysisFileWriter:
     def _ensure_directories(self):
         """Create directories if they don't exist."""
         for directory in [
+            self.raw_dir,  # NEW
             self.summarized_dir,
             self.evaluated_dir,
             self.approved_dir,
@@ -282,12 +284,13 @@ class AnalysisFileWriter:
 
         Args:
             article_id: Article identifier
-            stage: Stage name (summarized, evaluated, approved, reinfer, rejected)
+            stage: Stage name (raw, summarized, evaluated, approved, reinfer, rejected)
 
         Returns:
             Path object for the file
         """
         stage_dirs = {
+            "raw": self.raw_dir,  # NEW
             "summarized": self.summarized_dir,
             "evaluated": self.evaluated_dir,
             "approved": self.approved_dir,
@@ -299,6 +302,249 @@ class AnalysisFileWriter:
             raise ValueError(f"Invalid stage: {stage}. Must be one of: {list(stage_dirs.keys())}")
 
         return stage_dirs[stage] / f"{article_id}.json"
+
+    # NEW METHODS FOR 5-STAGE ARCHITECTURE
+
+    def save_raw_analysis(
+        self,
+        article_id: str,
+        response: Response,
+        source_data: Dict[str, Any],
+        metadata: Dict[str, Any],
+        attempt: int = 1
+    ) -> Path:
+        """
+        Save GenAI summarization output to raw/ directory.
+
+        Args:
+            article_id: Unique article identifier (e.g., PMID001)
+            response: Response object from summarization
+            source_data: Original article data (title, abstract, journal, etc.)
+            metadata: Processing metadata (time, tokens, cost, model info)
+            attempt: Attempt number (default: 1)
+
+        Returns:
+            Path to saved file
+        """
+        file_path = self.raw_dir / f"{article_id}.json"
+
+        # Build complete analysis record
+        analysis_record = {
+            "article_id": article_id,
+            "stage": "raw",  # Stage 2: Raw GenAI output
+            "attempt": attempt,
+            "processed_at": datetime.now().isoformat(),
+            "model": metadata.get("model_id", "unknown"),
+            "prompt_version": metadata.get("prompt_version", "v1"),
+
+            "source_data": source_data,
+
+            "analysis": {
+                "articleID": response.articleID,
+                "title": response.title,
+                "journal": response.journal,
+                "date": response.date,
+                "abstract": response.abstract,
+                "entity": [e.value for e in response.entity],
+                "subject": response.subject.value,
+                "summary": response.summary,
+                "category": response.category.value,
+                "country": response.country,
+                "sentiment": response.sentiment.value,
+                "industry_affiliation": response.industry_affiliation
+            },
+
+            "metadata": {
+                "processing_time_ms": metadata.get("processing_time_ms", 0),
+                "tokens_used": metadata.get("tokens_used", 0),
+                "cost_usd": metadata.get("cost_usd", 0.0),
+                "model_id": metadata.get("model_id", "unknown"),
+                "prompt_version": metadata.get("prompt_version", "v1"),
+                "success": metadata.get("success", True),
+                "error": metadata.get("error", None)
+            }
+        }
+
+        try:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(file_path, 'w', encoding='utf-8', errors='replace') as f:
+                json.dump(analysis_record, f, indent=2, ensure_ascii=False)
+            return file_path
+        except Exception as e:
+            try:
+                with open(file_path, 'w', encoding='utf-8', errors='replace') as f:
+                    json.dump(analysis_record, f, indent=2, ensure_ascii=True)
+                print(f"[WARNING] Saved {article_id} with ASCII encoding due to Unicode error")
+                return file_path
+            except Exception as e2:
+                raise IOError(f"Failed to write raw analysis file for {article_id}: {e} / {e2}")
+
+    def load_raw_analysis(self, article_id: str) -> Optional[Dict[str, Any]]:
+        """Load raw analysis from JSON file."""
+        file_path = self.raw_dir / f"{article_id}.json"
+        if not file_path.exists():
+            return None
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[WARNING] Failed to load {file_path}: {e}")
+            return None
+
+    def list_raw_analyses(self) -> List[str]:
+        """List all article IDs with raw analysis files."""
+        return [f.stem for f in self.raw_dir.glob("*.json")]
+
+    def save_evaluated_analysis(
+        self,
+        article_id: str,
+        raw_analysis: Dict[str, Any],
+        evaluation_result: Dict[str, Any],
+        evaluation_metadata: Dict[str, Any]
+    ) -> Path:
+        """
+        Save evaluated analysis with evaluation results attached.
+
+        Args:
+            article_id: Article identifier
+            raw_analysis: Original raw analysis data
+            evaluation_result: Evaluation result from evaluator
+            evaluation_metadata: Evaluation metadata
+
+        Returns:
+            Path to saved file
+        """
+        file_path = self.evaluated_dir / f"{article_id}.json"
+
+        # Combine raw analysis with evaluation
+        evaluated_record = {
+            **raw_analysis,
+            "stage": "evaluated",
+            "evaluation": evaluation_result,
+            "evaluation_metadata": evaluation_metadata
+        }
+
+        try:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(file_path, 'w', encoding='utf-8', errors='replace') as f:
+                json.dump(evaluated_record, f, indent=2, ensure_ascii=False)
+            return file_path
+        except Exception as e:
+            raise IOError(f"Failed to write evaluated analysis file for {article_id}: {e}")
+
+    def move_to_approved(self, article_id: str) -> Path:
+        """
+        Move evaluated analysis to approved directory.
+
+        Args:
+            article_id: Article identifier
+
+        Returns:
+            Path to new location
+        """
+        source = self.evaluated_dir / f"{article_id}.json"
+        destination = self.approved_dir / f"{article_id}.json"
+
+        if not source.exists():
+            raise FileNotFoundError(f"Evaluated file not found: {source}")
+
+        try:
+            # Load, update stage, and save
+            with open(source, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            data["stage"] = "approved"
+
+            with open(destination, 'w', encoding='utf-8', errors='replace') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
+            # Remove from evaluated
+            source.unlink()
+
+            return destination
+        except Exception as e:
+            raise IOError(f"Failed to move {article_id} to approved: {e}")
+
+    def move_to_reinfer(
+        self,
+        article_id: str,
+        feedback: str,
+        attempt: int = 1
+    ) -> Path:
+        """
+        Move evaluated analysis to reinfer directory with feedback.
+
+        Args:
+            article_id: Article identifier
+            feedback: Feedback for improvement
+            attempt: Attempt number
+
+        Returns:
+            Path to new location
+        """
+        source = self.evaluated_dir / f"{article_id}.json"
+        destination = self.reinfer_dir / f"{article_id}.json"
+
+        if not source.exists():
+            raise FileNotFoundError(f"Evaluated file not found: {source}")
+
+        try:
+            # Load, update stage and feedback, and save
+            with open(source, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            data["stage"] = "reinfer"
+            data["reinfer_feedback"] = feedback
+            data["attempt"] = attempt
+
+            with open(destination, 'w', encoding='utf-8', errors='replace') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
+            # Remove from evaluated
+            source.unlink()
+
+            return destination
+        except Exception as e:
+            raise IOError(f"Failed to move {article_id} to reinfer: {e}")
+
+    def move_to_rejected(self, article_id: str, reason: str) -> Path:
+        """
+        Move analysis to rejected directory after max retries.
+
+        Args:
+            article_id: Article identifier
+            reason: Reason for rejection
+
+        Returns:
+            Path to new location
+        """
+        # Try to find in reinfer or evaluated
+        source = self.reinfer_dir / f"{article_id}.json"
+        if not source.exists():
+            source = self.evaluated_dir / f"{article_id}.json"
+
+        if not source.exists():
+            raise FileNotFoundError(f"File not found for {article_id}")
+
+        destination = self.rejected_dir / f"{article_id}.json"
+
+        try:
+            # Load, update stage and reason, and save
+            with open(source, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            data["stage"] = "rejected"
+            data["rejection_reason"] = reason
+
+            with open(destination, 'w', encoding='utf-8', errors='replace') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
+            # Remove from source
+            source.unlink()
+
+            return destination
+        except Exception as e:
+            raise IOError(f"Failed to move {article_id} to rejected: {e}")
 
 
 if __name__ == "__main__":

@@ -114,3 +114,33 @@ class ClaimEvaluation(BaseModel):
 class FactualEvaluationResponse(BaseModel):
     article: str = Field(description="Source article in <article> xml tag")
     claims: List[ClaimEvaluation] = Field(description="List of claim evaluation")
+
+class QualityScore(BaseModel):
+    """Quality scoring breakdown (0-100 scale)"""
+    factual_accuracy: float = Field(ge=0, le=100, description="Accuracy of claims vs source (40% weight)")
+    completeness: float = Field(ge=0, le=100, description="Coverage of key findings (30% weight)")
+    clarity: float = Field(ge=0, le=100, description="Readability and conciseness (20% weight)")
+    people_first_language: float = Field(ge=0, le=100, description="Adherence to people-first language (10% weight)")
+    overall_score: float = Field(ge=0, le=100, description="Weighted overall quality score")
+
+class EvaluationResult(BaseModel):
+    """Complete evaluation result for a summary"""
+    article_id: str = Field(description="Article identifier (e.g., PMID001)")
+    quality_score: QualityScore = Field(description="Quality score breakdown")
+    hallucination_detected: bool = Field(description="Whether unsupported claims were found")
+    hallucination_examples: List[str] = Field(default_factory=list, description="Examples of hallucinated claims")
+    people_first_violations: List[str] = Field(default_factory=list, description="People-first language violations")
+    entity_consistency: bool = Field(description="Whether entities match article content")
+    entity_issues: List[str] = Field(default_factory=list, description="Entity extraction issues")
+    claim_evaluations: List[ClaimEvaluation] = Field(description="Detailed claim-by-claim evaluation")
+    feedback: str = Field(description="Actionable feedback for improvement")
+    passed: bool = Field(description="Whether summary passes quality threshold (>=80%)")
+    evaluated_at: str = Field(description="ISO timestamp of evaluation")
+
+class EvaluationMetadata(BaseModel):
+    """Metadata for evaluation process"""
+    evaluator_model: str = Field(description="Model used for evaluation")
+    evaluation_version: str = Field(description="Version of evaluation logic")
+    processing_time_ms: int = Field(description="Processing time in milliseconds")
+    tokens_used: int = Field(default=0, description="Tokens consumed during evaluation")
+    cost_usd: float = Field(default=0.0, description="Estimated cost in USD")

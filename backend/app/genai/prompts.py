@@ -88,3 +88,127 @@ Evaluation results:
 
 Generate a summary such that every individual sentence can be directly verified against the article text without inference.
 """
+
+quality_scoring_prompt = """
+You are an expert evaluating the quality of a generated research article summary.
+
+Original Article:
+<article>
+<title>{title}</title>
+<abstract>{abstract}</abstract>
+</article>
+
+Generated Summary:
+{summary}
+
+Generated Analysis:
+- Entities: {entities}
+- Subject: {subject}
+- Category: {category}
+- Sentiment: {sentiment}
+
+Evaluate the summary quality on a 0-100 scale across these dimensions:
+
+1. **Factual Accuracy (40% weight):**
+   - Are all claims directly supported by the abstract?
+   - No hallucinations or unsupported inferences?
+   - No contradictions with source material?
+   Score: 0 (many errors) to 100 (perfect accuracy)
+
+2. **Completeness (30% weight):**
+   - Does it cover the key findings/conclusions?
+   - Are important details preserved?
+   - Is the scope appropriate (not too brief or verbose)?
+   Score: 0 (missing key points) to 100 (comprehensive)
+
+3. **Clarity (20% weight):**
+   - Is the language clear and concise?
+   - Is it readable for leadership (non-technical audience)?
+   - Is the structure logical?
+   Score: 0 (unclear) to 100 (very clear)
+
+4. **People-First Language (10% weight):**
+   - Uses "people who smoke" NOT "smokers"
+   - Uses "individuals with asthma" NOT "asthmatics"
+   - Uses "participants who vape" NOT "vapers"
+   - Consistently applies people-first principles?
+   Score: 0 (many violations) to 100 (perfect adherence)
+
+Calculate:
+- Overall Score = (Factual Accuracy × 0.4) + (Completeness × 0.3) + (Clarity × 0.2) + (People-First × 0.1)
+
+Provide scores and brief justifications.
+"""
+
+hallucination_detection_prompt = """
+You are a fact-checker identifying unsupported or hallucinated claims in a generated summary.
+
+Original Abstract:
+{abstract}
+
+Generated Summary:
+{summary}
+
+Your task:
+1. Break the summary into individual factual claims
+2. For each claim, check if it is:
+   - **Supported:** Directly stated or clearly implied in the abstract
+   - **Not Mentioned:** Adds information not present in the abstract
+   - **Contradicted:** States the opposite of what the abstract says
+
+3. Flag any claims that are "Not Mentioned" or "Contradicted" as potential hallucinations
+
+Return:
+- hallucination_detected: true/false
+- hallucination_examples: List of unsupported claims (empty if none)
+
+Be strict: If a claim cannot be directly verified from the abstract text, mark it as unsupported.
+"""
+
+people_first_check_prompt = """
+You are checking adherence to people-first language guidelines.
+
+Generated Summary:
+{summary}
+
+People-First Language Rules:
+CORRECT: "people who smoke", "individuals with asthma", "participants who vape"
+INCORRECT: "smokers", "asthmatics", "vapers"
+
+General pattern:
+CORRECT: "[people/individuals/participants] who [action/condition]"
+INCORRECT: "[condition]-er" or "[condition] people"
+
+Task:
+1. Scan the summary for any violations of people-first language
+2. List each violation with the incorrect phrase and suggested correction
+3. Return:
+   - people_first_violations: List of violations (empty if none)
+   - people_first_score: 0-100 (100 = no violations, deduct 20 per violation)
+
+Examples of violations:
+- "smokers" should be "people who smoke"
+- "diabetics" should be "individuals with diabetes"
+- "asthmatic smokers" should be "participants who smoke and have asthma"
+"""
+
+entity_consistency_check_prompt = """
+You are verifying that extracted entities match the article content.
+
+Original Abstract:
+{abstract}
+
+Extracted Entities:
+{entities}
+
+Task:
+1. Check if each extracted entity is actually mentioned or clearly implied in the abstract
+2. Identify any entities that are:
+   - **Incorrect:** Not present in the abstract
+   - **Missed:** Important topics present but not extracted
+3. Return:
+   - entity_consistency: true/false (false if major issues)
+   - entity_issues: List of problems (empty if none)
+
+Be reasonable: Minor omissions are acceptable, but major topics should be captured.
+"""
