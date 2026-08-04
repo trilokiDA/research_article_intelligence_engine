@@ -9,14 +9,62 @@ from datetime import datetime
 from pathlib import Path
 from contextlib import contextmanager
 
+import sys
+from pathlib import Path as PathLib
+
 from .schemas import Response
-from ..db.database import get_db, DATABASE_PATH
+
+# Handle both import contexts: app.genai and genai
+try:
+    from ..db.database import get_db, DATABASE_PATH
+except ImportError:
+    # When imported as 'genai' package, add app directory to path
+    _current_dir = PathLib(__file__).parent
+    _app_dir = _current_dir.parent
+    if str(_app_dir) not in sys.path:
+        sys.path.insert(0, str(_app_dir))
+    from db.database import get_db, DATABASE_PATH
 
 
 class ArticleRepository:
     """
     Repository for managing articles and their analysis.
     """
+
+    @staticmethod
+    def get_article_by_id(article_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a single article by article_id.
+
+        Args:
+            article_id: Article identifier (e.g., PMID12345)
+
+        Returns:
+            Article dictionary or None if not found
+        """
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            query = """
+                SELECT
+                    a.id,
+                    a.article_id,
+                    a.title,
+                    a.journal,
+                    a.publication_date,
+                    a.abstract,
+                    a.source,
+                    a.doi
+                FROM articles a
+                WHERE a.article_id = ?
+            """
+
+            cursor.execute(query, (article_id,))
+            row = cursor.fetchone()
+
+            if row:
+                return dict(row)
+            return None
 
     @staticmethod
     def get_articles_pending_analysis(

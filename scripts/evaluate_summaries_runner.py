@@ -13,20 +13,15 @@ import json
 
 # Setup paths for imports
 PROJECT_ROOT = Path(__file__).parent.parent
-GENAI_DIR = PROJECT_ROOT / "backend" / "app" / "genai"
 
-# Add genai to path and temporarily change directory for imports
-original_cwd = os.getcwd()
-sys.path.insert(0, str(GENAI_DIR))
-os.chdir(str(GENAI_DIR))
+# Add backend/app to path so we can import genai package
+backend_app_dir = PROJECT_ROOT / "backend" / "app"
+if str(backend_app_dir) not in sys.path:
+    sys.path.insert(0, str(backend_app_dir))
 
-try:
-    # Import from genai directory
-    from evaluator import SummaryEvaluator
-    from file_writer import AnalysisFileWriter
-finally:
-    # Restore working directory
-    os.chdir(original_cwd)
+# Import from genai package properly
+from genai.evaluator import SummaryEvaluator
+from genai.file_writer import AnalysisFileWriter
 
 # Import tqdm
 try:
@@ -70,11 +65,15 @@ def evaluate_summaries(
 
     # Initialize
     print("\n[1/5] Initializing...")
+
+    # Use absolute path for data directory (since we changed to genai dir)
+    data_dir = PROJECT_ROOT / "data" / "analysis"
+
     evaluator = SummaryEvaluator(
         model_name=model_name,
         quality_threshold=threshold
     )
-    file_writer = AnalysisFileWriter()
+    file_writer = AnalysisFileWriter(base_dir=str(data_dir))
 
     print(f"      Model: {model_name}")
     print(f"      Quality Threshold: {threshold}%")

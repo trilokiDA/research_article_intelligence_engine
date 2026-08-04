@@ -4,16 +4,18 @@ AI-powered platform for collecting, analyzing, and summarizing scientific resear
 
 ## 🎯 Current Status
 
-**Version:** 1.0 (Ingestion + GenAI Analysis)  
-**What Works:** PubMed ingestion, topic-based queries, file-based GenAI summarization  
-**Next Phase:** Evaluation pipeline, revalidation, re-inference capabilities
+**Version:** 1.1 (5-Stage Pipeline)  
+**What Works:** PubMed ingestion, GenAI summarization, evaluation pipeline, re-inference workflow  
+**Architecture:** Raw → Evaluate → Approved/Re-infer → Re-evaluate → Approved/Rejected
 
 ## Features
 
 - 📥 **PubMed Ingestion** - Collect articles from PubMed with topic-based queries
 - ⚠️ **Crossref (Disabled)** - Available but commented out (no abstracts returned)
-- 🤖 **AI-Powered Analysis** - Automatic summarization using Groq LLMs (file-based)
+- 🤖 **AI-Powered Analysis** - Automatic summarization using Groq LLMs
 - 📊 **Structured Data** - Entity extraction, sentiment analysis, and categorization
+- ✅ **Quality Evaluation** - Automated evaluation with factual accuracy checks, hallucination detection, and people-first language validation
+- 🔄 **Re-inference Loop** - Failed summaries are re-generated with feedback (max 3 attempts)
 - 🔍 **Full-Text Search** - SQLite FTS5 for fast article search
 - 🎯 **Smart Filtering** - Skip already-analyzed articles automatically
 
@@ -96,35 +98,53 @@ python ingest_cli.py search "tobacco harm reduction" \
     --max 50
 ```
 
-### 5. Run GenAI Analysis
+### 5. Run GenAI Analysis (5-Stage Pipeline)
 
-The GenAI pipeline analyzes articles and saves results to JSON files (one per article).
+The GenAI pipeline uses a 5-stage quality-controlled workflow:
+
+**Stage 1:** Data Ingestion → SQLite  
+**Stage 2:** GenAI Summarization → `raw/`  
+**Stage 3:** Quality Evaluation → `approved/` or `reinfer/`  
+**Stage 4:** Re-inference (if needed) → Re-evaluate → `approved/` or `rejected/`  
+**Stage 5:** Database Load (future)
+
+#### Stage 2: Generate Summaries
 
 ```bash
-# Check pending articles
-python backend/scripts/run_summarization.py --stats-only
-
-# Process 10 articles (dry run)
-python backend/scripts/run_summarization.py --limit 10 --dry-run
-
-# Process all pending articles (saves to data/analysis/)
-python backend/scripts/run_summarization.py
+# Process articles and save to raw/ directory
+python backend/scripts/run_summarization.py --limit 10
 
 # Custom configuration
 python backend/scripts/run_summarization.py \
-    --model llama-3.1-8b-instant \
+    --model llama-3.3-70b-versatile \
     --batch-size 5 \
     --limit 50
 ```
 
-**Output Format:** Each analyzed article produces a JSON file in `data/analysis/` containing:
-- Summary (people-first language)
-- Entities (topics, products)
-- Category (research type)
-- Sentiment (THR stance)
-- Country, industry affiliation, etc.
+#### Stage 3: Evaluate Quality
 
-**Smart Skip:** Already-analyzed articles (with existing JSON files) are automatically skipped.
+```bash
+# Evaluate and route summaries
+python scripts/evaluate_summaries.py --source raw --limit 10
+
+# Custom threshold (default: 80%)
+python scripts/evaluate_summaries.py --source raw --threshold 85
+```
+
+**Evaluation:** Factual accuracy, hallucination detection, people-first language  
+**Routing:** Quality ≥80% → `approved/`, <80% → `reinfer/`
+
+#### Stage 4: Re-inference (Optional)
+
+```bash
+# Re-infer failed summaries with evaluation feedback
+python scripts/reinfer_summaries.py
+
+# Dry run to preview
+python scripts/reinfer_summaries.py --dry-run
+```
+
+**Re-inference:** Re-run with feedback → Re-evaluate → `approved/` or `rejected/` (max 3 attempts)
 
 ### 6. Check Status
 
@@ -142,41 +162,35 @@ python view_data.py --format detailed --limit 10
 
 ## Usage Examples
 
-### Monthly Research Update
+### Monthly Research Update (Complete Workflow)
 
 ```bash
-# Fetch last month's research for all topics
-python ingest_cli.py topic "Heat-Not-Burn" \
-    --sources pubmed \
-    --max 50 \
-    --from-date 2024-07-01 \
-    --to-date 2024-07-31
+# Step 1: Ingest articles
+python ingest_cli.py topic "Heat-Not-Burn" --sources pubmed --max 50
 
-python ingest_cli.py topic "E-Cigarettes" \
-    --sources pubmed \
-    --max 50 \
-    --from-date 2024-07-01 \
-    --to-date 2024-07-31
+# Step 2: Generate summaries (Stage 2)
+python backend/scripts/run_summarization.py --limit 50
 
-# Analyze all pending articles
-python backend/scripts/run_summarization.py
+# Step 3: Evaluate quality (Stage 3)
+python scripts/evaluate_summaries.py --source raw
 
-# Check results
+# Step 4: Re-infer failed summaries (Stage 4)
+python scripts/reinfer_summaries.py
+
+# Step 5: Check results
 python ingest_cli.py stats
 ```
 
 ### Historical Backfill
 
 ```bash
-# Fetch all 2024 research for specific topic
-python ingest_cli.py topic "Heat-Not-Burn" \
-    --sources pubmed \
-    --max 500 \
-    --from-date 2024-01-01 \
-    --to-date 2024-12-31
+# Fetch historical research
+python ingest_cli.py topic "Heat-Not-Burn" --sources pubmed --max 500
 
-# Analyze in batches
+# Process through 5-stage pipeline
 python backend/scripts/run_summarization.py --batch-size 10
+python scripts/evaluate_summaries.py --source raw
+python scripts/reinfer_summaries.py
 ```
 
 ### Specific Research Areas
@@ -251,53 +265,71 @@ Show articles pending GenAI analysis.
 python ingest_cli.py pending [--limit LIMIT]
 ```
 
-### GenAI Analysis Commands
+### GenAI Analysis Commands (5-Stage Pipeline)
 
-#### `run_summarization.py`
-Process articles through GenAI pipeline.
+#### Stage 2: `run_summarization.py`
 
 ```bash
 python backend/scripts/run_summarization.py [OPTIONS]
 
 Options:
-  --stats-only              Show statistics only
   --limit N                 Process max N articles
-  --dry-run                 Process but don't save
   --model MODEL             Groq model (default: llama-3.3-70b-versatile)
   --batch-size N            Articles per batch (default: 10)
-  --output-format FORMAT    'files' (default) or 'database'
-  --analysis-dir DIR        Output directory (default: data/analysis/)
+  --dry-run                 Process but don't save
 ```
 
-## GenAI Pipeline
+#### Stage 3: `evaluate_summaries.py`
+
+```bash
+python scripts/evaluate_summaries.py [OPTIONS]
+
+Options:
+  --source SOURCE           'raw' or 'summarized' (default: raw)
+  --threshold N             Quality threshold 0-100 (default: 80)
+  --limit N                 Process max N files
+  --dry-run                 Evaluate but don't save/move files
+```
+
+#### Stage 4: `reinfer_summaries.py`
+
+```bash
+python scripts/reinfer_summaries.py [OPTIONS]
+
+Options:
+  --max-attempts N          Max retry attempts (default: 3)
+  --limit N                 Process max N files
+  --dry-run                 Process but don't save/move files
+```
+
+## GenAI Pipeline (5-Stage Architecture)
 
 ### How It Works
 
-1. **Fetch** - Get articles where analysis JSON doesn't exist
-2. **Process** - Send to Groq LLM with structured output
-3. **Validate** - Pydantic validates against schema
-4. **Save** - Write JSON file to `data/analysis/{article_id}.json`
-5. **Skip** - Already-analyzed articles are automatically skipped
+**Stage 1: Data Ingestion**  
+PubMed API → Normalizer → SQLite
 
-### Output Schema
+**Stage 2: GenAI Summarization**  
+Fetch pending articles → Send to Groq LLM → Validate schema → Save to `raw/`
 
-Each article produces a JSON file:
+**Stage 3: Quality Evaluation**  
+Load from `raw/` → Evaluate (factual accuracy, hallucination, people-first language) → Route: ≥80% → `approved/`, <80% → `reinfer/`
 
-```json
-{
-  "articleID": "PMID12345678",
-  "title": "Original article title",
-  "journal": "Journal name",
-  "date": "2024-01-15",
-  "abstract": "Original abstract text",
-  "entity": ["electronic cigarettes", "harm reduction"],
-  "subject": "E-cigarettes",
-  "summary": "People-first language summary...",
-  "category": "Clinical Studies",
-  "country": "United States",
-  "sentiment": "Positive",
-  "industry_affiliation": "n/a"
-}
+**Stage 4: Re-inference (If Needed)**  
+Load from `reinfer/` → Re-run with feedback → Re-evaluate → Route: Pass → `approved/`, Fail (3x) → `rejected/`
+
+**Stage 5: Database Load (Future)**  
+Load approved summaries to database
+
+### File Structure
+
+```
+data/analysis/
+├── raw/            # Stage 2: Initial GenAI outputs
+├── approved/       # Passed quality gate (≥80%)
+├── reinfer/        # Failed, awaiting retry (<80%)
+├── rejected/       # Failed after max attempts
+└── summarized/     # Legacy
 ```
 
 ### Available Models
@@ -434,6 +466,15 @@ SQLite only allows one writer at a time. If you see this error:
 - Run ingestion first: `python ingest_cli.py topic "Heat-Not-Burn" --max 10`
 - Check: `python ingest_cli.py stats`
 
+### "No files to evaluate"
+- Run Stage 2 first: `python backend/scripts/run_summarization.py --limit 10`
+- Check raw directory: `ls data/analysis/raw/`
+
+### Import errors after updates
+- Ensure all modules use relative imports (v1.1 update)
+- Run from project root directory
+- Restart Python environment if needed
+
 ## Project Structure
 
 ```
@@ -448,47 +489,61 @@ radar/
 │   │   │   ├── normalizer.py         # Data normalization
 │   │   │   └── orchestrator.py       # Multi-source coordination
 │   │   ├── genai/
-│   │   │   ├── pipeline.py           # Analysis orchestration
+│   │   │   ├── pipeline.py           # Summarization pipeline (Stage 2)
 │   │   │   ├── summarizer.py         # Groq LLM integration
+│   │   │   ├── evaluator.py          # Quality evaluation (Stage 3)
 │   │   │   ├── repository.py         # Database access
+│   │   │   ├── file_writer.py        # File routing (raw/approved/reinfer/rejected)
 │   │   │   ├── schemas.py            # Pydantic models
-│   │   │   └── prompts.py            # LLM prompts
+│   │   │   ├── prompts.py            # LLM prompts
+│   │   │   └── config.py             # Pipeline configuration
 │   │   └── config/
 │   │       ├── query_manager.py      # Topic query loader
 │   │       └── search_queries.json   # Predefined queries
 │   ├── scripts/
-│   │   └── run_summarization.py      # GenAI CLI
-│   ├── ingest_cli.py                 # Ingestion CLI
+│   │   └── run_summarization.py      # Stage 2: Generate summaries
+│   ├── ingest_cli.py                 # Ingestion CLI (Stage 1)
 │   └── requirements.txt
+├── scripts/
+│   ├── evaluate_summaries.py         # Stage 3: Quality evaluation
+│   └── reinfer_summaries.py          # Stage 4: Re-inference workflow
 ├── data/
 │   ├── articles.db                   # SQLite database
-│   └── analysis/                     # GenAI output (JSON files)
+│   └── analysis/
+│       ├── raw/                      # Stage 2 output
+│       ├── approved/                 # Passed quality gate
+│       ├── reinfer/                  # Awaiting retry
+│       ├── rejected/                 # Failed max attempts
+│       └── summarized/               # Legacy
 ├── docs/
 │   ├── GENAI_PIPELINE.md            # GenAI implementation
-│   └── SCHEMA_MAPPING.md            # Database schema
+│   ├── EVALUATOR_MODULE.md          # Evaluation pipeline
+│   ├── MIGRATION_TO_5_STAGE.md      # Migration plan
+│   └── SCHEMA_REFERENCE.md          # Database schema
 └── README.md                        # This file
 ```
 
 ## Documentation
 
 - **GenAI Pipeline:** [docs/GENAI_PIPELINE.md](docs/GENAI_PIPELINE.md)
-- **Database Schema:** [docs/SCHEMA_MAPPING.md](docs/SCHEMA_MAPPING.md)
+- **Evaluation Module:** [docs/EVALUATOR_MODULE.md](docs/EVALUATOR_MODULE.md)
+- **5-Stage Migration:** [docs/MIGRATION_TO_5_STAGE.md](docs/MIGRATION_TO_5_STAGE.md)
+- **Database Schema:** [docs/SCHEMA_REFERENCE.md](docs/SCHEMA_REFERENCE.md)
+- **API Reference:** [docs/API_REFERENCE.md](docs/API_REFERENCE.md)
 - **Full Project Docs:** [docs/](docs/)
 
 ## Roadmap
 
-### Current (v1.0) ✅
+### Current (v1.1) ✅
 - PubMed ingestion with topic queries
-- File-based GenAI analysis
-- Skip logic for existing summaries
-- Structured output validation
-
-### In Progress (v1.1)
-- Evaluation pipeline
-- Revalidation workflow
-- Re-inference capabilities
+- 5-stage quality-controlled pipeline
+- GenAI summarization with structured output
+- Evaluation with factual accuracy checks
+- Re-inference workflow with feedback loop
+- Automated quality routing (approved/reinfer/rejected)
 
 ### Planned (v2.0)
+- Stage 5: Database load automation
 - Advanced RAG Q&A across corpus
 - Citation network analysis
 - Multi-document synthesis

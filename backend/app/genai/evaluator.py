@@ -11,7 +11,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from dotenv import load_dotenv
 
-from schemas import (
+from .schemas import (
     EvaluationResult,
     EvaluationMetadata,
     QualityScore,
@@ -19,7 +19,7 @@ from schemas import (
     LabelEnum,
     FactualEvaluationResponse
 )
-from prompts import (
+from .prompts import (
     quality_scoring_prompt,
     hallucination_detection_prompt,
     people_first_check_prompt,
