@@ -3,7 +3,7 @@ Summarization module for research articles using Groq LLM with LangChain.
 """
 
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
@@ -68,7 +68,10 @@ class ArticleSummarizer:
         title: str,
         journal: str,
         date: str,
-        abstract: str
+        abstract: str,
+        feedback: Optional[str] = None,
+        previous_summary: Optional[str] = None,
+        previous_claims: Optional[str] = None
     ) -> Response:
         """
         Summarize a research article.
@@ -79,6 +82,9 @@ class ArticleSummarizer:
             journal: Journal name
             date: Publication date
             abstract: Article abstract
+            feedback: Optional feedback from evaluation (for re-inference)
+            previous_summary: Previous summary text (for re-inference)
+            previous_claims: Previous claim evaluations (for re-inference)
 
         Returns:
             Response object with structured article summary
@@ -88,13 +94,25 @@ class ArticleSummarizer:
             Exception: For other errors during processing
         """
         # Format the prompt with article data
-        formatted_prompt = summarization_prompt.format(
-            doc_id=doc_id,
-            title=title,
-            journal=journal,
-            date=date,
-            abstract=abstract if abstract else ""
-        )
+        if feedback and previous_summary:
+            # Use re-inference prompt with feedback
+            from .prompts import reinfer_prompt
+            formatted_prompt = reinfer_prompt.format(
+                abstract=abstract if abstract else "",
+                summary=previous_summary,
+                claims=previous_claims or feedback
+            )
+            # Append the original summarization task instructions
+            formatted_prompt += f"\n\n{summarization_prompt.format(doc_id=doc_id, title=title, journal=journal, date=date, abstract=abstract if abstract else '')}"
+        else:
+            # Standard summarization
+            formatted_prompt = summarization_prompt.format(
+                doc_id=doc_id,
+                title=title,
+                journal=journal,
+                date=date,
+                abstract=abstract if abstract else ""
+            )
 
         # Try summarization with retries for validation errors
         for attempt in range(self.max_retries):

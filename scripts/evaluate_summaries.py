@@ -21,18 +21,17 @@ GENAI_DIR = PROJECT_ROOT / "backend" / "app" / "genai"
 
 
 def _lazy_imports():
-    """Lazy import - only called at runtime, not during module load."""
-    _cwd = os.getcwd()
-    try:
-        os.chdir(str(GENAI_DIR))
-        sys.path.insert(0, str(GENAI_DIR))
+    """Import genai modules using proper package path."""
+    # Add backend/app to path so we can import genai package
+    backend_app_dir = PROJECT_ROOT / "backend" / "app"
+    if str(backend_app_dir) not in sys.path:
+        sys.path.insert(0, str(backend_app_dir))
 
-        from evaluator import SummaryEvaluator
-        from file_writer import AnalysisFileWriter
+    # Now import from the genai package properly
+    from genai.evaluator import SummaryEvaluator
+    from genai.file_writer import AnalysisFileWriter
 
-        return SummaryEvaluator, AnalysisFileWriter
-    finally:
-        os.chdir(_cwd)
+    return SummaryEvaluator, AnalysisFileWriter
 
 
 def evaluate_summaries(
@@ -44,7 +43,7 @@ def evaluate_summaries(
     model_name: str = "llama-3.3-70b-versatile"
 ):
     """Evaluate summaries and route based on quality score."""
-    # Lazy import at runtime
+    # Import genai modules
     SummaryEvaluator, AnalysisFileWriter = _lazy_imports()
 
     # Try to import tqdm
@@ -67,11 +66,15 @@ def evaluate_summaries(
 
     # Initialize
     print("\n[1/5] Initializing...")
+
+    # Use absolute path for data directory
+    data_dir = PROJECT_ROOT / "data" / "analysis"
+
     evaluator = SummaryEvaluator(
         model_name=model_name,
         quality_threshold=threshold
     )
-    file_writer = AnalysisFileWriter()
+    file_writer = AnalysisFileWriter(base_dir=str(data_dir))
 
     print(f"      Model: {model_name}")
     print(f"      Quality Threshold: {threshold}%")

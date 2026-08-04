@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
-from schemas import Response
+from .schemas import Response
 
 
 class AnalysisFileWriter:
@@ -190,7 +190,7 @@ class AnalysisFileWriter:
 
     def get_processing_stats(self) -> Dict[str, Any]:
         """
-        Get statistics from all summarized analysis files.
+        Get statistics from all analysis files (checks raw/ and summarized/ for backward compatibility).
 
         Returns:
             Dictionary with processing statistics
@@ -208,42 +208,47 @@ class AnalysisFileWriter:
             "by_subject": {}
         }
 
-        for file_path in self.summarized_dir.glob("*.json"):
-            stats["total_files"] += 1
+        # Check raw/ directory (Stage 2 output) and summarized/ (legacy)
+        for directory in [self.raw_dir, self.summarized_dir]:
+            if not directory.exists():
+                continue
 
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+            for file_path in directory.glob("*.json"):
+                stats["total_files"] += 1
 
-                # Success/failure
-                if data.get("metadata", {}).get("success", True):
-                    stats["successful"] += 1
-                else:
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+
+                    # Success/failure
+                    if data.get("metadata", {}).get("success", True):
+                        stats["successful"] += 1
+                    else:
+                        stats["failed"] += 1
+
+                    # Aggregate metadata
+                    metadata = data.get("metadata", {})
+                    stats["total_processing_time_ms"] += metadata.get("processing_time_ms", 0)
+                    stats["total_tokens"] += metadata.get("tokens_used", 0)
+                    stats["total_cost_usd"] += metadata.get("cost_usd", 0.0)
+
+                    # By model
+                    model = metadata.get("model_id", "unknown")
+                    stats["by_model"][model] = stats["by_model"].get(model, 0) + 1
+
+                    # By category, sentiment, subject
+                    analysis = data.get("analysis", {})
+                    category = analysis.get("category", "unknown")
+                    sentiment = analysis.get("sentiment", "unknown")
+                    subject = analysis.get("subject", "unknown")
+
+                    stats["by_category"][category] = stats["by_category"].get(category, 0) + 1
+                    stats["by_sentiment"][sentiment] = stats["by_sentiment"].get(sentiment, 0) + 1
+                    stats["by_subject"][subject] = stats["by_subject"].get(subject, 0) + 1
+
+                except Exception as e:
+                    print(f"[WARNING] Failed to process {file_path}: {e}")
                     stats["failed"] += 1
-
-                # Aggregate metadata
-                metadata = data.get("metadata", {})
-                stats["total_processing_time_ms"] += metadata.get("processing_time_ms", 0)
-                stats["total_tokens"] += metadata.get("tokens_used", 0)
-                stats["total_cost_usd"] += metadata.get("cost_usd", 0.0)
-
-                # By model
-                model = metadata.get("model_id", "unknown")
-                stats["by_model"][model] = stats["by_model"].get(model, 0) + 1
-
-                # By category, sentiment, subject
-                analysis = data.get("analysis", {})
-                category = analysis.get("category", "unknown")
-                sentiment = analysis.get("sentiment", "unknown")
-                subject = analysis.get("subject", "unknown")
-
-                stats["by_category"][category] = stats["by_category"].get(category, 0) + 1
-                stats["by_sentiment"][sentiment] = stats["by_sentiment"].get(sentiment, 0) + 1
-                stats["by_subject"][subject] = stats["by_subject"].get(subject, 0) + 1
-
-            except Exception as e:
-                print(f"[WARNING] Failed to process {file_path}: {e}")
-                stats["failed"] += 1
 
         # Calculate averages
         if stats["total_files"] > 0:
@@ -545,6 +550,35 @@ class AnalysisFileWriter:
             return destination
         except Exception as e:
             raise IOError(f"Failed to move {article_id} to rejected: {e}")
+
+    def load_reinfer_analysis(self, article_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Load analysis from reinfer directory.
+
+        Args:
+            article_id: Article identifier
+
+        Returns:
+            Analysis data dict or None if not found
+        """
+        file_path = self.reinfer_dir / f"{article_id}.json"
+        if not file_path.exists():
+            return None
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[WARNING] Failed to load {file_path}: {e}")
+            return None
+
+    def list_reinfer_analyses(self) -> List[str]:
+        """
+        List all article IDs in reinfer directory.
+
+        Returns:
+            List of article IDs (filenames without .json extension)
+        """
+        return [f.stem for f in self.reinfer_dir.glob("*.json")]
 
 
 if __name__ == "__main__":

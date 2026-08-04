@@ -65,12 +65,21 @@ class SummarizationPipeline:
         # Initialize file writer (for JSON output)
         self.file_writer = AnalysisFileWriter()  # NEW
 
-    def process_article(self, article: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def process_article(
+        self,
+        article: Dict[str, Any],
+        feedback: Optional[str] = None,
+        previous_summary: Optional[str] = None,
+        previous_claims: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """
         Process a single article.
 
         Args:
             article: Article dictionary from database
+            feedback: Optional feedback from evaluation (for re-inference)
+            previous_summary: Previous summary text (for re-inference)
+            previous_claims: Previous claim evaluations (for re-inference)
 
         Returns:
             Dictionary with 'result' (Response object) and 'metadata', or None if failed
@@ -83,7 +92,10 @@ class SummarizationPipeline:
                 title=article['title'],
                 journal=article.get('journal', ''),
                 date=article.get('publication_date', ''),
-                abstract=article.get('abstract', '')
+                abstract=article.get('abstract', ''),
+                feedback=feedback,
+                previous_summary=previous_summary,
+                previous_claims=previous_claims
             )
 
             # Calculate processing time
@@ -205,9 +217,10 @@ class SummarizationPipeline:
 
                 # Process each article in batch
                 for article in articles:
-                    # Skip if JSON file already exists (for JSON output mode)
+                    # Skip if raw JSON file already exists (Stage 2 output)
                     if self.output_format == 'json' and not dry_run:
-                        if self.file_writer.exists_summarized_analysis(article['article_id']):
+                        raw_file = self.file_writer.raw_dir / f"{article['article_id']}.json"
+                        if raw_file.exists():
                             stats['skipped'] += 1
                             stats['processed'] += 1
                             pbar.update(1)
@@ -221,7 +234,7 @@ class SummarizationPipeline:
                         if not dry_run:
                             # Save based on output format
                             if self.output_format == 'json':
-                                # NEW: Save to JSON file
+                                # Stage 2: Save to raw/ directory
                                 try:
                                     source_data = {
                                         'title': article.get('title', ''),
@@ -232,14 +245,14 @@ class SummarizationPipeline:
                                         'source': article.get('source', '')
                                     }
 
-                                    file_path = self.file_writer.save_summarized_analysis(
+                                    file_path = self.file_writer.save_raw_analysis(
                                         article_id=article['article_id'],
                                         response=process_result['result'],
                                         source_data=source_data,
                                         metadata=process_result['metadata'],
                                         attempt=1
                                     )
-                                    # Success - file saved
+                                    # Success - file saved to raw/
                                 except Exception as e:
                                     print(f"\n[WARNING] Failed to save JSON for {article['article_id']}: {e}")
                                     stats['failed'] += 1
