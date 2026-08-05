@@ -92,6 +92,11 @@ def init_db():
             analyzed_at DATETIME,
             analysis_status TEXT DEFAULT 'pending',
             fact_check_status TEXT,
+            evaluation_score REAL,
+            evaluation_metadata TEXT,
+            stage TEXT,
+            attempt INTEGER DEFAULT 1,
+            loaded_at DATETIME,
             FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE
         )
     """)
@@ -100,6 +105,8 @@ def init_db():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_status ON article_analysis(analysis_status)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_sentiment ON article_analysis(sentiment)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_category ON article_analysis(category)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_stage ON article_analysis(stage)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_score ON article_analysis(evaluation_score)")
 
     # Create full-text search virtual table
     conn.execute("""
@@ -113,6 +120,78 @@ def init_db():
 
     print(f"[OK] Database initialized at: {DATABASE_PATH}")
     print(f"     Tables: articles, article_analysis, articles_fts")
+
+
+def migrate_db():
+    """
+    Migrate existing database to add new Stage 5 columns.
+    Safe to run on both new and existing databases.
+    """
+    conn = sqlite3.connect(str(DATABASE_PATH))
+    cursor = conn.cursor()
+
+    # Check if new columns exist
+    cursor.execute("PRAGMA table_info(article_analysis)")
+    columns = {row[1] for row in cursor.fetchall()}
+
+    migrations_applied = []
+
+    # Add evaluation_score column if missing
+    if 'evaluation_score' not in columns:
+        try:
+            conn.execute("ALTER TABLE article_analysis ADD COLUMN evaluation_score REAL")
+            migrations_applied.append("evaluation_score")
+        except Exception as e:
+            print(f"[WARNING] Could not add evaluation_score: {e}")
+
+    # Add evaluation_metadata column if missing
+    if 'evaluation_metadata' not in columns:
+        try:
+            conn.execute("ALTER TABLE article_analysis ADD COLUMN evaluation_metadata TEXT")
+            migrations_applied.append("evaluation_metadata")
+        except Exception as e:
+            print(f"[WARNING] Could not add evaluation_metadata: {e}")
+
+    # Add stage column if missing
+    if 'stage' not in columns:
+        try:
+            conn.execute("ALTER TABLE article_analysis ADD COLUMN stage TEXT")
+            migrations_applied.append("stage")
+        except Exception as e:
+            print(f"[WARNING] Could not add stage: {e}")
+
+    # Add attempt column if missing
+    if 'attempt' not in columns:
+        try:
+            conn.execute("ALTER TABLE article_analysis ADD COLUMN attempt INTEGER DEFAULT 1")
+            migrations_applied.append("attempt")
+        except Exception as e:
+            print(f"[WARNING] Could not add attempt: {e}")
+
+    # Add loaded_at column if missing
+    if 'loaded_at' not in columns:
+        try:
+            conn.execute("ALTER TABLE article_analysis ADD COLUMN loaded_at DATETIME")
+            migrations_applied.append("loaded_at")
+        except Exception as e:
+            print(f"[WARNING] Could not add loaded_at: {e}")
+
+    # Create new indexes if they don't exist
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_stage ON article_analysis(stage)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_score ON article_analysis(evaluation_score)")
+    except Exception as e:
+        print(f"[WARNING] Could not create indexes: {e}")
+
+    conn.commit()
+    conn.close()
+
+    if migrations_applied:
+        print(f"[OK] Database migrated. Added columns: {', '.join(migrations_applied)}")
+    else:
+        print(f"[OK] Database schema is up to date")
+
+    return migrations_applied
 
 
 def get_stats():
@@ -144,11 +223,21 @@ def get_stats():
         cursor.execute("SELECT COUNT(*) as count FROM article_analysis")
         analyzed_count = cursor.fetchone()['count']
 
+        # Count by stage (Stage 5 addition)
+        cursor.execute("""
+            SELECT stage, COUNT(*) as count
+            FROM article_analysis
+            WHERE stage IS NOT NULL
+            GROUP BY stage
+        """)
+        stage_counts = {row['stage']: row['count'] for row in cursor.fetchall()}
+
         return {
             'total_articles': article_count,
             'analyzed_articles': analyzed_count,
             'by_status': status_counts,
-            'by_source': source_counts
+            'by_source': source_counts,
+            'by_stage': stage_counts
         }
 
 

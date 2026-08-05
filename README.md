@@ -106,7 +106,7 @@ The GenAI pipeline uses a 5-stage quality-controlled workflow:
 **Stage 2:** GenAI Summarization → `raw/`  
 **Stage 3:** Quality Evaluation → `approved/` or `reinfer/`  
 **Stage 4:** Re-inference (if needed) → Re-evaluate → `approved/` or `rejected/`  
-**Stage 5:** Database Load (future)
+**Stage 5:** Database Load → `article_analysis` table
 
 #### Stage 2: Generate Summaries
 
@@ -146,6 +146,24 @@ python scripts/reinfer_summaries.py --dry-run
 
 **Re-inference:** Re-run with feedback → Re-evaluate → `approved/` or `rejected/` (max 3 attempts)
 
+#### Stage 5: Load to Database
+
+```bash
+# Load all approved summaries to database
+python scripts/load_to_database.py
+
+# Load and archive source files
+python scripts/load_to_database.py --archive
+
+# Dry run (validate without committing)
+python scripts/load_to_database.py --dry-run
+
+# Load specific articles
+python scripts/load_to_database.py --article-id PMID001 PMID002
+```
+
+**Database Load:** Approved summaries → `article_analysis` table → `loaded/` (archive)
+
 ### 6. Check Status
 
 ```bash
@@ -177,7 +195,10 @@ python scripts/evaluate_summaries.py --source raw
 # Step 4: Re-infer failed summaries (Stage 4)
 python scripts/reinfer_summaries.py
 
-# Step 5: Check results
+# Step 5: Load to database (Stage 5)
+python scripts/load_to_database.py --archive
+
+# Step 6: Check results
 python ingest_cli.py stats
 ```
 
@@ -191,6 +212,7 @@ python ingest_cli.py topic "Heat-Not-Burn" --sources pubmed --max 500
 python backend/scripts/run_summarization.py --batch-size 10
 python scripts/evaluate_summaries.py --source raw
 python scripts/reinfer_summaries.py
+python scripts/load_to_database.py --archive
 ```
 
 ### Specific Research Areas
@@ -302,6 +324,20 @@ Options:
   --dry-run                 Process but don't save/move files
 ```
 
+#### Stage 5: `load_to_database.py`
+
+```bash
+python scripts/load_to_database.py [OPTIONS]
+
+Options:
+  --article-id ID [ID...]   Load specific article IDs
+  --limit N                 Process max N files
+  --dry-run                 Validate without committing to database
+  --archive                 Move loaded files to archive directory
+  --migrate-only            Only migrate database schema
+  --stats                   Show database statistics
+```
+
 ## GenAI Pipeline (5-Stage Architecture)
 
 ### How It Works
@@ -318,8 +354,8 @@ Load from `raw/` → Evaluate (factual accuracy, hallucination, people-first lan
 **Stage 4: Re-inference (If Needed)**  
 Load from `reinfer/` → Re-run with feedback → Re-evaluate → Route: Pass → `approved/`, Fail (3x) → `rejected/`
 
-**Stage 5: Database Load (Future)**  
-Load approved summaries to database
+**Stage 5: Database Load**  
+Load from `approved/` → Transform JSON to SQL → Insert/update `article_analysis` table → Archive to `loaded/`
 
 ### File Structure
 
@@ -329,6 +365,7 @@ data/analysis/
 ├── approved/       # Passed quality gate (≥80%)
 ├── reinfer/        # Failed, awaiting retry (<80%)
 ├── rejected/       # Failed after max attempts
+├── loaded/         # Stage 5: Successfully loaded to DB (archive)
 └── summarized/     # Legacy
 ```
 
@@ -527,6 +564,7 @@ radar/
 
 - **GenAI Pipeline:** [docs/GENAI_PIPELINE.md](docs/GENAI_PIPELINE.md)
 - **Evaluation Module:** [docs/EVALUATOR_MODULE.md](docs/EVALUATOR_MODULE.md)
+- **Stage 5 Database Load:** [docs/STAGE_5_DATABASE_LOAD.md](docs/STAGE_5_DATABASE_LOAD.md)
 - **5-Stage Migration:** [docs/MIGRATION_TO_5_STAGE.md](docs/MIGRATION_TO_5_STAGE.md)
 - **Database Schema:** [docs/SCHEMA_REFERENCE.md](docs/SCHEMA_REFERENCE.md)
 - **API Reference:** [docs/API_REFERENCE.md](docs/API_REFERENCE.md)
@@ -536,14 +574,14 @@ radar/
 
 ### Current (v1.1) ✅
 - PubMed ingestion with topic queries
-- 5-stage quality-controlled pipeline
+- Complete 5-stage quality-controlled pipeline
 - GenAI summarization with structured output
 - Evaluation with factual accuracy checks
 - Re-inference workflow with feedback loop
 - Automated quality routing (approved/reinfer/rejected)
+- Database load with archiving and idempotency
 
 ### Planned (v2.0)
-- Stage 5: Database load automation
 - Advanced RAG Q&A across corpus
 - Citation network analysis
 - Multi-document synthesis
