@@ -97,6 +97,49 @@ class Response(BaseModel):
     def normalize_entity(cls, v):
         if v is None or (isinstance(v, list) and len(v) == 0) or (isinstance(v, str) and v.strip() == ''):
             return [EntityEnum.others]
+
+        # Map common variations to valid enum values
+        entity_mapping = {
+            # E-cigarette variations
+            'e-cigarettes': 'electronic cigarettes',
+            'e-cigs': 'electronic cigarettes',
+            'ecigs': 'electronic cigarettes',
+            'e-cigarette': 'electronic cigarettes',
+            'ends': 'electronic nicotine delivery systems (ENDS)',
+
+            # Substance/drug variations
+            'cannabis': 'marijuana',
+            'drug use': 'addiction',
+            'substance use': 'addiction',
+            'drugs': 'addiction',
+            'substance abuse': 'addiction',
+
+            # Policy/regulation variations
+            'regulation': 'tobacco control policies',
+            'policy': 'tobacco control policies',
+            'regulations': 'tobacco control policies',
+            'policies': 'tobacco control policies',
+            'tobacco regulation': 'tobacco control policies',
+            'tobacco policy': 'tobacco control policies',
+
+            # Other common variations
+            'risk': 'health risks',
+            'risks': 'health risks',
+            'health risk': 'health risks',
+        }
+
+        # Normalize each entity in the list
+        if isinstance(v, list):
+            normalized = []
+            for item in v:
+                if isinstance(item, str):
+                    # Check if it's a variation that needs mapping
+                    mapped_value = entity_mapping.get(item.lower(), item)
+                    normalized.append(mapped_value)
+                else:
+                    normalized.append(item)
+            return normalized
+
         return v
  
 class LabelEnum(str, Enum):

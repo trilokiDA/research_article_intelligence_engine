@@ -5,12 +5,14 @@ Your task is to provide the following details:
 * Journal - Journal in which the article is published as given
 * Date - Publication date of the article as given in yyyy-mm-dd format
 * Abstract - Abstract text of the article as given
-* Entity - List of topic entities extracted from the article. **Select only from the Entity values specified. Choose a diverse and representative set of options that best cover the abstract. If not then mark it as others**
-* Subject - Broad subject of the reasearch article
+* Entity - List of topic entities extracted from the article. **You MUST select ONLY from these exact values (case-sensitive):**
+  - 'electronic cigarettes', 'nicotine', 'smoking cessation', 'cigarettes', 'youth', 'vaping', 'smoking', 'snus', 'tobacco products', 'smokeless tobacco', 'public health', 'tobacco', 'cigars', 'harm reduction', 'iqos', 'hookah', 'dual use', 'heated tobacco products', 'quitting', 'e-liquids', 'population assessment of tobacco and health study', 'nicotine replacement therapy', 'asthma', 'marijuana', 'social media', 'addiction', 'juul', 'cytotoxicity', 'former smokers', 'current smokers', 'gender', 'mental health', 'tobacco control policies', 'health risks', 'smoking reduction', 'secondhand smoke', 'cancer', 'depression', 'FDA', 'alcohol', 'harm perceptions', 'chemicals', 'nicotine pouches', 'smoking status', 'advertising', 'gender differences', 'smoking initiation', 'cardiovascular disease', 'electronic nicotine delivery systems (ENDS)', 'others'
+  **Choose a diverse and representative set (typically 3-5) that best cover the abstract. If nothing matches well, use 'others'.**
+* Subject - Broad subject of the research article. **Select ONLY from:** 'Heated Tobacco Products (HTP)', 'E-cigarettes', 'Vaping', 'Oral Smokeless', 'Other'
 * Summary - A concise, plain-language summary of the article, suitable for leadership review
-* Category - Broad research category of the research article
+* Category - Broad research category of the research article. **Select ONLY from:** 'Aerosol Chemistry', 'Preclinical Studies', 'Clinical Studies', 'Behavior Studies', 'Epidemiology', 'Case Studies', 'Economic Studies', 'Public Health Studies', 'Other'
 * Country - Full country name of study, or 'n/a' if not specified
-* Sentiment - Sentiment towards Tobacco Harm Reduction (THR) expressed in the article
+* Sentiment - Sentiment towards Tobacco Harm Reduction (THR) expressed in the article. **Select ONLY from:** 'Positive', 'Negative', 'Neutral', 'Mixed', 'Undefined'
 * Industry affiliation - Industry affiliation (e.g., PMI, JTI, BAT) if mentioned, 'n/a' if not provided
 
 <article>
@@ -36,11 +38,11 @@ Required patterns:
 General principle: Always describe people by stating who they are first (participants, individuals, people) followed by what they do or have (who smoke, with asthma), rather than defining them by a single characteristic.
 
 **Note**
-* Please only select Entity from EntityEnum and Category from CategoryEnum and double check your findings.
+* **CRITICAL:** You MUST use the exact entity/subject/category/sentiment values listed above. Do NOT create variations or synonyms (e.g., use 'marijuana' NOT 'cannabis', use 'electronic cigarettes' NOT 'e-cigarettes'). When in doubt, use 'others' for entities, 'Other' for subject/category, or 'Undefined' for sentiment.
 * If the <abstract> field is null, empty, or missing:
     * Set "summary" to an empty string "".
-    * Infer "subject" from the article title using the SubjectEnum categories.
-    * Infer "category" from the article title using the CategoryEnum categories.
+    * Infer "subject" from the article title using the Subject values listed above.
+    * Infer "category" from the article title using the Category values listed above.
     * Extract entities from the title instead of the abstract.
     * **Do NOT guess additional information beyond what the title directly implies.**
 """

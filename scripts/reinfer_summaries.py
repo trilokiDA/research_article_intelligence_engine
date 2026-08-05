@@ -213,7 +213,7 @@ def reinfer_summaries(
                 if not dry_run:
                     file_writer.save_raw_analysis(
                         article_id=article_id_item,
-                        article=article,
+                        source_data=article,
                         response=response,
                         metadata=metadata
                     )
