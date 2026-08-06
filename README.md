@@ -180,7 +180,27 @@ python view_data.py --format detailed --limit 10
 
 ## Usage Examples
 
-### Monthly Research Update (Complete Workflow)
+### Full Pipeline Orchestrator (Recommended)
+
+The easiest way to run the complete workflow is using the full pipeline orchestrator:
+
+```bash
+# Complete 5-stage workflow (one command)
+python scripts/full_pipeline.py --topic "Heat-Not-Burn" --max-articles 50 --archive
+
+# Quick test run
+python scripts/full_pipeline.py --topic "E-Cigarettes" --limit 10 --dry-run
+
+# Custom stages only
+python scripts/full_pipeline.py --stages summarize evaluate load --limit 20
+
+# High quality threshold
+python scripts/full_pipeline.py --topic "Nicotine-Pouch" --threshold 90 --max-articles 30
+```
+
+### Monthly Research Update (Manual Steps)
+
+For more control, run each stage individually:
 
 ```bash
 # Step 1: Ingest articles
@@ -203,6 +223,15 @@ python ingest_cli.py stats
 ```
 
 ### Historical Backfill
+
+Using full pipeline orchestrator:
+
+```bash
+# Single command for complete backfill
+python scripts/full_pipeline.py --topic "Heat-Not-Burn" --max-articles 500 --archive
+```
+
+Or manual steps:
 
 ```bash
 # Fetch historical research
@@ -230,6 +259,45 @@ python ingest_cli.py search "e-cigarettes AND adolescents" \
 ```
 
 ## CLI Commands
+
+### Full Pipeline Orchestrator
+
+#### `full_pipeline.py`
+
+Run the complete 5-stage workflow with a single command.
+
+```bash
+python scripts/full_pipeline.py [OPTIONS]
+
+Required (for ingestion):
+  --topic TOPIC             Predefined topic name
+  --query QUERY             Custom search query
+
+Options:
+  --stages STAGE [STAGE...] Stages to run (default: all)
+                           Choices: ingest, summarize, evaluate, reinfer, load
+  --max-articles N          Max articles to ingest (default: 100)
+  --limit N                 Limit articles per processing stage
+  --threshold N             Quality threshold 0-100 (default: 80)
+  --from-date DATE          Start date YYYY-MM-DD
+  --to-date DATE            End date YYYY-MM-DD
+  --archive                 Archive loaded files
+  --dry-run                 Validate without making changes
+  --quiet                   Suppress verbose output
+
+Examples:
+  # Complete workflow
+  python scripts/full_pipeline.py --topic "Heat-Not-Burn" --max-articles 50
+
+  # Specific stages only
+  python scripts/full_pipeline.py --stages summarize evaluate load --limit 20
+
+  # Dry run
+  python scripts/full_pipeline.py --topic "E-Cigarettes" --limit 10 --dry-run
+
+  # High quality bar
+  python scripts/full_pipeline.py --query "IQOS heated tobacco" --threshold 90
+```
 
 ### Ingestion Commands
 
@@ -473,6 +541,28 @@ for article in pending:
     print(f"{article['article_id']}: {article['title']}")
 ```
 
+## Integration Testing
+
+Run integration tests to validate the complete pipeline:
+
+```bash
+# Run all integration tests
+pytest tests/test_integration.py -v
+
+# Run specific test class
+pytest tests/test_integration.py::TestFullPipelineIntegration -v
+
+# Run with coverage
+pytest tests/test_integration.py --cov=backend/app --cov-report=html
+```
+
+Integration tests cover:
+- Stage-to-stage data flow
+- End-to-end workflows (happy path and error scenarios)
+- Data integrity across pipeline
+- Error handling and rollback
+- File routing (raw → approved/reinfer/rejected → loaded)
+
 ## Troubleshooting
 
 ### "No module named Bio"
@@ -512,6 +602,18 @@ SQLite only allows one writer at a time. If you see this error:
 - Run from project root directory
 - Restart Python environment if needed
 
+### Pipeline orchestrator fails
+- Check that all stage scripts are present
+- Verify database and directory permissions
+- Run with --dry-run to validate before execution
+- Check logs for specific stage failures
+
+### Integration tests failing
+- Ensure pytest is installed: `pip install pytest pytest-cov`
+- Check test database path and permissions
+- Verify all dependencies are installed
+- Run individual test classes to isolate issues
+
 ## Project Structure
 
 ```
@@ -530,6 +632,7 @@ radar/
 │   │   │   ├── summarizer.py         # Groq LLM integration
 │   │   │   ├── evaluator.py          # Quality evaluation (Stage 3)
 │   │   │   ├── repository.py         # Database access
+│   │   │   ├── db_loader.py          # Database loader (Stage 5)
 │   │   │   ├── file_writer.py        # File routing (raw/approved/reinfer/rejected)
 │   │   │   ├── schemas.py            # Pydantic models
 │   │   │   ├── prompts.py            # LLM prompts
@@ -542,8 +645,15 @@ radar/
 │   ├── ingest_cli.py                 # Ingestion CLI (Stage 1)
 │   └── requirements.txt
 ├── scripts/
+│   ├── full_pipeline.py              # Complete workflow orchestrator
 │   ├── evaluate_summaries.py         # Stage 3: Quality evaluation
-│   └── reinfer_summaries.py          # Stage 4: Re-inference workflow
+│   ├── reinfer_summaries.py          # Stage 4: Re-inference workflow
+│   └── load_to_database.py           # Stage 5: Database load
+├── tests/
+│   ├── test_integration.py           # Integration tests (full pipeline)
+│   ├── test_genai.py                 # GenAI unit tests
+│   ├── test_evaluator_quick.py      # Evaluator tests
+│   └── test_pubmed.py                # PubMed ingestion tests
 ├── data/
 │   ├── articles.db                   # SQLite database
 │   └── analysis/
@@ -551,10 +661,12 @@ radar/
 │       ├── approved/                 # Passed quality gate
 │       ├── reinfer/                  # Awaiting retry
 │       ├── rejected/                 # Failed max attempts
+│       ├── loaded/                   # Archived after DB load
 │       └── summarized/               # Legacy
 ├── docs/
 │   ├── GENAI_PIPELINE.md            # GenAI implementation
 │   ├── EVALUATOR_MODULE.md          # Evaluation pipeline
+│   ├── STAGE_5_DATABASE_LOAD.md     # Database load documentation
 │   ├── MIGRATION_TO_5_STAGE.md      # Migration plan
 │   └── SCHEMA_REFERENCE.md          # Database schema
 └── README.md                        # This file

@@ -335,13 +335,115 @@ Check latest models: https://console.groq.com/docs/models
 - Groq offers generous free tier
 - Check pricing: https://wow.groq.com/
 
+## Full Pipeline Integration
+
+### Complete Workflow Orchestrator
+
+The `full_pipeline.py` script orchestrates all 5 stages:
+
+```bash
+# Run complete workflow
+python scripts/full_pipeline.py --topic "Heat-Not-Burn" --max-articles 50 --archive
+
+# Custom stages
+python scripts/full_pipeline.py --stages summarize evaluate load --limit 20
+
+# Dry run
+python scripts/full_pipeline.py --topic "E-Cigarettes" --limit 10 --dry-run
+```
+
+**Features:**
+- Single command for complete workflow
+- Automatic stage progression
+- Error handling and recovery
+- Progress tracking across stages
+- Dry-run mode for validation
+- Detailed summary statistics
+
+### Integration Points
+
+**Stage 1 → Stage 2:**
+- Articles table → Repository.get_articles_pending_analysis()
+- Only processes articles where summary IS NULL
+
+**Stage 2 → Stage 3:**
+- Summarization → raw/ directory
+- Evaluator reads from raw/ folder
+- Routes to approved/ or reinfer/ based on score
+
+**Stage 3 → Stage 4:**
+- Failed summaries → reinfer/ directory
+- Re-inference script picks up from reinfer/
+- Re-evaluates and moves to approved/ or rejected/
+
+**Stage 4 → Stage 5:**
+- Approved summaries → approved/ directory
+- Database loader reads approved/
+- Inserts to article_analysis table
+- Archives to loaded/ (optional)
+
+### Integration Testing
+
+Run comprehensive integration tests:
+
+```bash
+# All integration tests
+pytest tests/test_integration.py -v
+
+# Specific test suite
+pytest tests/test_integration.py::TestFullPipelineIntegration -v
+
+# End-to-end workflow tests
+pytest tests/test_integration.py::TestFullPipelineIntegration::test_end_to_end_happy_path -v
+```
+
+**Test Coverage:**
+- Stage-to-stage data flow
+- Happy path (complete success)
+- Error scenarios (reinference required)
+- Data integrity validation
+- File routing verification
+- Database consistency checks
+
+### Error Handling
+
+**Pipeline Resilience:**
+- Individual stage failures don't break entire pipeline
+- Failed articles tracked in database
+- Files preserved on error (no data loss)
+- Automatic retry logic in Stage 4
+- Graceful degradation
+
+**Recovery Strategies:**
+1. **Stage 2 Failure:** Check GROQ_API_KEY, verify rate limits
+2. **Stage 3 Failure:** Review evaluation prompts, check model availability
+3. **Stage 4 Failure:** Verify max_attempts setting, check feedback quality
+4. **Stage 5 Failure:** Ensure articles exist in database, verify schema
+
+### Best Practices
+
+**For Production:**
+1. Use full_pipeline.py for automated runs
+2. Enable archiving (--archive flag)
+3. Set appropriate quality thresholds (--threshold)
+4. Monitor error logs and statistics
+5. Run integration tests regularly
+
+**For Development:**
+1. Use --dry-run for validation
+2. Test with small limits (--limit 10)
+3. Run individual stages for debugging
+4. Check file routing manually
+5. Verify database state after each stage
+
 ## Next Steps
 
-After summarization:
+After complete pipeline execution:
 
 1. **View Results:**
    ```bash
    python view_data.py --format detailed
+   python ingest_cli.py stats
    ```
 
 2. **Export Analysis:**
@@ -352,11 +454,23 @@ After summarization:
    WHERE aa.summary IS NOT NULL
    ```
 
-3. **Build Dashboard:**
+3. **Monitor Quality:**
+   ```bash
+   # Check approval rates
+   ls -l data/analysis/approved/ | wc -l
+   ls -l data/analysis/rejected/ | wc -l
+   
+   # Review rejected summaries
+   cat data/analysis/rejected/*.json
+   ```
+
+4. **Build Dashboard:**
    - Use FastAPI to serve results
    - Create visualizations from analysis data
+   - Display pipeline statistics
 
-4. **Add Fact Checking:**
-   - Implement evaluation pipeline
-   - Use `summary_evaluation_prompt`
-   - Add LangGraph for multi-step workflows
+5. **Scheduled Runs:**
+   ```bash
+   # Cron job for daily updates
+   0 2 * * * cd /path/to/radar && python scripts/full_pipeline.py --topic "Heat-Not-Burn" --max-articles 50 --archive
+   ```
