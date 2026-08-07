@@ -598,6 +598,18 @@ class AnalysisFileWriter:
         """
         return [f.stem for f in self.rejected_dir.glob("*.json")]
 
+    def list_loaded_analyses(self) -> List[str]:
+        """
+        List all article IDs in loaded directory (archives after database load).
+
+        Returns:
+            List of article IDs (filenames without .json extension)
+        """
+        loaded_dir = self.base_dir / "loaded"
+        if not loaded_dir.exists():
+            return []
+        return [f.stem for f in loaded_dir.glob("*.json")]
+
 
 if __name__ == "__main__":
     # Test the file writer

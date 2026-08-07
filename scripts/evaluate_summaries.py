@@ -91,16 +91,32 @@ def evaluate_summaries(
         if source_dir == "raw":
             all_raw_files = file_writer.list_raw_analyses()
 
-            # Skip articles already evaluated (in approved or reinfer)
+            # Skip articles already evaluated (in approved, reinfer, loaded, or rejected)
             already_approved = set(file_writer.list_approved_analyses())
             already_reinfer = set(file_writer.list_reinfer_analyses())
-            already_evaluated = already_approved | already_reinfer
+            already_loaded = set(file_writer.list_loaded_analyses())
+            already_rejected = set(file_writer.list_rejected_analyses())
+            already_evaluated = already_approved | already_reinfer | already_loaded | already_rejected
 
             files_to_process = [f for f in all_raw_files if f not in already_evaluated]
 
             print(f"      Found {len(all_raw_files)} raw analyses")
-            print(f"      Already evaluated: {len(already_evaluated)} (approved: {len(already_approved)}, reinfer: {len(already_reinfer)})")
-            print(f"      Pending evaluation: {len(files_to_process)}")
+
+            # Check if all raw files have been processed
+            if len(files_to_process) == 0 and len(all_raw_files) > 0:
+                print(f"      [OK] All {len(all_raw_files)} raw articles have been analyzed!")
+                print(f"      Distribution:")
+                print(f"        - Approved: {len(already_approved)} (ready for database load)")
+                print(f"        - Reinfer: {len(already_reinfer)} (waiting for re-inference)")
+                print(f"        - Loaded: {len(already_loaded)} (already in database)")
+                print(f"        - Rejected: {len(already_rejected)} (failed after max retries)")
+            else:
+                print(f"      Already evaluated: {len(already_evaluated)}")
+                print(f"        - Approved: {len(already_approved)}")
+                print(f"        - Reinfer: {len(already_reinfer)}")
+                print(f"        - Loaded: {len(already_loaded)}")
+                print(f"        - Rejected: {len(already_rejected)}")
+                print(f"      Pending evaluation: {len(files_to_process)}")
         elif source_dir == "summarized":
             files_to_process = file_writer.list_summarized_analyses()
             print(f"      Found {len(files_to_process)} summarized analyses")
@@ -110,10 +126,25 @@ def evaluate_summaries(
 
         if limit:
             files_to_process = files_to_process[:limit]
+
+        if files_to_process:
             print(f"      Will evaluate {len(files_to_process)} files")
 
     if not files_to_process:
-        print("\n[INFO] No files to evaluate. Exiting.")
+        print("\n" + "="*80)
+        print("[INFO] No files to evaluate. All articles have been processed!")
+        print("="*80)
+
+        if source_dir == "raw":
+            print("\nNext steps:")
+            if len(already_approved) > 0:
+                print(f"  - Load {len(already_approved)} approved articles to database:")
+                print(f"    python scripts/load_to_database.py")
+            if len(already_reinfer) > 0:
+                print(f"  - Re-infer {len(already_reinfer)} articles that need improvement:")
+                print(f"    python scripts/reinfer_summaries.py")
+            print("\n" + "="*80)
+
         return
 
     # Statistics

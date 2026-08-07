@@ -9,6 +9,8 @@ Both the evaluation and re-inference stages now intelligently skip articles that
 Previously, the evaluation script (`evaluate_summaries_runner.py`) would process **all** articles in the `raw/` folder, even if they had already been evaluated and routed to:
 - `approved/` - Articles that passed quality threshold
 - `reinfer/` - Articles that failed and need re-inference
+- `loaded/` - Articles successfully loaded to database (archived)
+- `rejected/` - Articles failed after max retries
 
 ### Re-inference Stage
 Similarly, the re-inference script (`reinfer_summaries.py`) would process **all** articles in the `reinfer/` folder, even if they had already been finalized:
@@ -34,6 +36,13 @@ def list_approved_analyses(self) -> List[str]:
 def list_rejected_analyses(self) -> List[str]:
     """List all article IDs in rejected directory."""
     return [f.stem for f in self.rejected_dir.glob("*.json")]
+
+def list_loaded_analyses(self) -> List[str]:
+    """List all article IDs in loaded directory (archives after database load)."""
+    loaded_dir = self.base_dir / "loaded"
+    if not loaded_dir.exists():
+        return []
+    return [f.stem for f in loaded_dir.glob("*.json")]
 ```
 
 ### 2. Updated Evaluation Discovery Logic
@@ -42,18 +51,22 @@ def list_rejected_analyses(self) -> List[str]:
 The script now:
 1. Lists all raw analyses
 2. Gets already-approved articles
-3. Gets already-reinfer articles  
-4. **Filters out** articles that exist in either approved or reinfer folders
-5. Only processes remaining (unevaluated) articles
+3. Gets already-reinfer articles
+4. Gets already-loaded articles (archived after database load)
+5. Gets already-rejected articles (failed after max retries)
+6. **Filters out** articles that exist in any of these folders
+7. Only processes remaining (unevaluated) articles
 
 ```python
 if source_dir == "raw":
     all_raw_files = file_writer.list_raw_analyses()
     
-    # Skip articles already evaluated (in approved or reinfer)
+    # Skip articles already evaluated (in approved, reinfer, loaded, or rejected)
     already_approved = set(file_writer.list_approved_analyses())
     already_reinfer = set(file_writer.list_reinfer_analyses())
-    already_evaluated = already_approved | already_reinfer
+    already_loaded = set(file_writer.list_loaded_analyses())
+    already_rejected = set(file_writer.list_rejected_analyses())
+    already_evaluated = already_approved | already_reinfer | already_loaded | already_rejected
     
     files_to_process = [f for f in all_raw_files if f not in already_evaluated]
 ```
@@ -91,10 +104,14 @@ files_to_process = [f for f in all_reinfer_files if f not in already_finalized]
 ### Evaluation Stage Output
 ```
 [2/5] Discovering files...
-      Found 100 raw analyses
-      Already evaluated: 75 (approved: 60, reinfer: 15)
-      Pending evaluation: 25
-      Will evaluate 25 files
+      Found 126 raw analyses
+      Already evaluated: 119
+        - Approved: 60
+        - Reinfer: 15
+        - Loaded: 40
+        - Rejected: 4
+      Pending evaluation: 7
+      Will evaluate 7 files
 ```
 
 ### Re-inference Stage Output
@@ -116,6 +133,7 @@ The `AnalysisFileWriter` class now provides these listing methods:
 | `list_reinfer_analyses()` | `reinfer/` | Articles needing re-inference |
 | `list_approved_analyses()` | `approved/` | Articles passed quality gate |
 | `list_rejected_analyses()` | `rejected/` | Articles failed after max attempts |
+| `list_loaded_analyses()` | `loaded/` | Articles archived after database load |
 
 ## Pipeline Flow
 
@@ -123,17 +141,17 @@ The `AnalysisFileWriter` class now provides these listing methods:
 raw/
   ↓
   ├─ evaluate_summaries_runner.py
-  │  └─ Checks: NOT IN (approved/ OR reinfer/)
+  │  └─ Checks: NOT IN (approved/ OR reinfer/ OR loaded/ OR rejected/)
   │  └─ Skip Logic: Only process unevaluated articles
   │
-  ├─ PASS (≥80%) → approved/
+  ├─ PASS (≥80%) → approved/ → (Stage 5) db_loader.py → loaded/
   └─ FAIL (<80%) → reinfer/
                     ↓
                     reinfer_summaries.py
                     └─ Checks: NOT IN (approved/ OR rejected/)
                     └─ Skip Logic: Only process pending articles
                     ↓
-                    ├─ PASS → approved/
+                    ├─ PASS → approved/ → (Stage 5) db_loader.py → loaded/
                     ├─ FAIL → reinfer/ (with attempt++)
                     └─ MAX_ATTEMPTS → rejected/
 ```
