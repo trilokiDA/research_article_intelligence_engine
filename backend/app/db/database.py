@@ -48,6 +48,7 @@ def init_db():
             doi TEXT,
             url TEXT,
             ingestion_status TEXT DEFAULT 'pending',
+            analysis_status TEXT DEFAULT 'pending',
             article_type TEXT,
             title TEXT NOT NULL,
             abstract TEXT,
@@ -69,6 +70,9 @@ def init_db():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_doi ON articles(doi)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_date ON articles(publication_date)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_status ON articles(ingestion_status)")
+
+    # Index for analysis_status will be created by migrate_db() if column exists
+    # or when the table is first created with the column
 
     # Create article_analysis table (GenAI results)
     conn.execute("""
@@ -183,6 +187,27 @@ def migrate_db():
     except Exception as e:
         print(f"[WARNING] Could not create indexes: {e}")
 
+    # Add analysis_status column to articles table if missing
+    cursor.execute("PRAGMA table_info(articles)")
+    article_columns = {row[1] for row in cursor.fetchall()}
+
+    if 'analysis_status' not in article_columns:
+        try:
+            conn.execute("ALTER TABLE articles ADD COLUMN analysis_status TEXT DEFAULT 'pending'")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_articles_analysis_status ON articles(analysis_status)")
+            migrations_applied.append("analysis_status")
+
+            # Update existing records: mark articles with analysis as 'analyzed'
+            conn.execute("""
+                UPDATE articles
+                SET analysis_status = 'analyzed'
+                WHERE id IN (SELECT article_id FROM article_analysis)
+            """)
+            updated_count = cursor.rowcount
+            print(f"[OK] Marked {updated_count} existing articles as 'analyzed'")
+        except Exception as e:
+            print(f"[WARNING] Could not add analysis_status: {e}")
+
     conn.commit()
     conn.close()
 
@@ -232,20 +257,32 @@ def get_stats():
         """)
         stage_counts = {row['stage']: row['count'] for row in cursor.fetchall()}
 
+        # Count by analysis_status
+        cursor.execute("""
+            SELECT analysis_status, COUNT(*) as count
+            FROM articles
+            GROUP BY analysis_status
+        """)
+        analysis_status_counts = {row['analysis_status']: row['count'] for row in cursor.fetchall()}
+
         return {
             'total_articles': article_count,
             'analyzed_articles': analyzed_count,
             'by_status': status_counts,
             'by_source': source_counts,
-            'by_stage': stage_counts
+            'by_stage': stage_counts,
+            'by_analysis_status': analysis_status_counts
         }
 
 
 if __name__ == "__main__":
     init_db()
+    migrate_db()
     stats = get_stats()
     print(f"\n[STATS] Database Statistics:")
     print(f"        Total articles: {stats['total_articles']}")
     print(f"        Analyzed: {stats['analyzed_articles']}")
     print(f"        By status: {stats['by_status']}")
     print(f"        By source: {stats['by_source']}")
+    if 'by_analysis_status' in stats:
+        print(f"        By analysis status: {stats['by_analysis_status']}")

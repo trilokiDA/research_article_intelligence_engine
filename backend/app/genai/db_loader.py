@@ -258,6 +258,14 @@ class AnalysisDatabaseLoader:
                 ))
                 self.stats['loaded'] += 1
 
+            # Update articles table: mark this article as analyzed
+            cursor.execute("""
+                UPDATE articles
+                SET analysis_status = 'analyzed',
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (article_uuid,))
+
             conn.commit()
             return True, None
 

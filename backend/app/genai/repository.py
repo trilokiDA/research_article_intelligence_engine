@@ -72,7 +72,7 @@ class ArticleRepository:
         offset: int = 0
     ) -> List[Dict[str, Any]]:
         """
-        Get articles that need summarization (where summary is NULL in article_analysis).
+        Get articles that need summarization (using analysis_status from articles table).
 
         Args:
             limit: Maximum number of articles to fetch
@@ -84,10 +84,8 @@ class ArticleRepository:
         with get_db() as conn:
             cursor = conn.cursor()
 
-            # Get articles where:
-            # 1. No analysis record exists, OR
-            # 2. Analysis record exists but summary is NULL or empty, OR
-            # 3. Analysis status is 'pending' or 'failed'
+            # Get articles where analysis_status is 'pending' or 'failed'
+            # This is much faster than LEFT JOIN as it uses the indexed column
             query = """
                 SELECT
                     a.id,
@@ -98,14 +96,9 @@ class ArticleRepository:
                     a.abstract,
                     a.source,
                     a.doi,
-                    aa.analysis_status
+                    a.analysis_status
                 FROM articles a
-                LEFT JOIN article_analysis aa ON a.article_id = aa.article_id
-                WHERE
-                    aa.article_id IS NULL
-                    OR aa.summary IS NULL
-                    OR aa.summary = ''
-                    OR aa.analysis_status IN ('pending', 'failed')
+                WHERE a.analysis_status IN ('pending', 'failed')
                 ORDER BY a.ingested_at DESC
             """
 
@@ -132,13 +125,8 @@ class ArticleRepository:
 
             cursor.execute("""
                 SELECT COUNT(*) as count
-                FROM articles a
-                LEFT JOIN article_analysis aa ON a.article_id = aa.article_id
-                WHERE
-                    aa.article_id IS NULL
-                    OR aa.summary IS NULL
-                    OR aa.summary = ''
-                    OR aa.analysis_status IN ('pending', 'failed')
+                FROM articles
+                WHERE analysis_status IN ('pending', 'failed')
             """)
 
             return cursor.fetchone()['count']
@@ -224,6 +212,14 @@ class ArticleRepository:
                         datetime.now().isoformat()
                     ))
 
+                # Update articles table: mark this article as analyzed
+                cursor.execute("""
+                    UPDATE articles
+                    SET analysis_status = 'analyzed',
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE article_id = ?
+                """, (response.articleID,))
+
                 conn.commit()
                 return True
 
@@ -260,6 +256,14 @@ class ArticleRepository:
                     article_id,
                     datetime.now().isoformat()
                 ))
+
+                # Update articles table: mark this article as failed
+                cursor.execute("""
+                    UPDATE articles
+                    SET analysis_status = 'failed',
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE article_id = ?
+                """, (article_id,))
 
                 conn.commit()
                 return True
