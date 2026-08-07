@@ -580,6 +580,24 @@ class AnalysisFileWriter:
         """
         return [f.stem for f in self.reinfer_dir.glob("*.json")]
 
+    def list_approved_analyses(self) -> List[str]:
+        """
+        List all article IDs in approved directory.
+
+        Returns:
+            List of article IDs (filenames without .json extension)
+        """
+        return [f.stem for f in self.approved_dir.glob("*.json")]
+
+    def list_rejected_analyses(self) -> List[str]:
+        """
+        List all article IDs in rejected directory.
+
+        Returns:
+            List of article IDs (filenames without .json extension)
+        """
+        return [f.stem for f in self.rejected_dir.glob("*.json")]
+
 
 if __name__ == "__main__":
     # Test the file writer

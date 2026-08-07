@@ -90,9 +90,21 @@ def evaluate_summaries(
     else:
         # Get all files from source directory
         if source_dir == "raw":
-            files_to_process = file_writer.list_raw_analyses()
+            all_raw_files = file_writer.list_raw_analyses()
+
+            # Skip articles already evaluated (in approved or reinfer)
+            already_approved = set(file_writer.list_approved_analyses())
+            already_reinfer = set(file_writer.list_reinfer_analyses())
+            already_evaluated = already_approved | already_reinfer
+
+            files_to_process = [f for f in all_raw_files if f not in already_evaluated]
+
+            print(f"      Found {len(all_raw_files)} raw analyses")
+            print(f"      Already evaluated: {len(already_evaluated)} (approved: {len(already_approved)}, reinfer: {len(already_reinfer)})")
+            print(f"      Pending evaluation: {len(files_to_process)}")
         elif source_dir == "summarized":
             files_to_process = file_writer.list_summarized_analyses()
+            print(f"      Found {len(files_to_process)} summarized analyses")
         else:
             print(f"[ERROR] Invalid source directory: {source_dir}")
             return
@@ -100,7 +112,7 @@ def evaluate_summaries(
         if limit:
             files_to_process = files_to_process[:limit]
 
-        print(f"      Found {len(files_to_process)} files to evaluate")
+        print(f"      Will evaluate {len(files_to_process)} files")
 
     if not files_to_process:
         print("\n[INFO] No files to evaluate. Exiting.")

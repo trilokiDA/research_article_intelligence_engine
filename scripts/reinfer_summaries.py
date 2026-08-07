@@ -97,12 +97,22 @@ def reinfer_summaries(
         files_to_process = [article_id]
         print(f"      Processing 1 specified article: {article_id}")
     else:
-        files_to_process = file_writer.list_reinfer_analyses()
+        all_reinfer_files = file_writer.list_reinfer_analyses()
+
+        # Skip articles already finalized (in approved or rejected)
+        already_approved = set(file_writer.list_approved_analyses())
+        already_rejected = set(file_writer.list_rejected_analyses())
+        already_finalized = already_approved | already_rejected
+
+        files_to_process = [f for f in all_reinfer_files if f not in already_finalized]
+
+        print(f"      Found {len(all_reinfer_files)} files in reinfer/")
+        print(f"      Already finalized: {len(already_finalized)} (approved: {len(already_approved)}, rejected: {len(already_rejected)})")
+        print(f"      Pending re-inference: {len(files_to_process)}")
 
         if limit:
             files_to_process = files_to_process[:limit]
-
-        print(f"      Found {len(files_to_process)} files to re-infer")
+            print(f"      Will process {len(files_to_process)} files (limited)")
 
     if not files_to_process:
         print("\n[INFO] No files to re-infer. Exiting.")
@@ -134,6 +144,21 @@ def reinfer_summaries(
 
                 if not reinfer_analysis:
                     print(f"\n[WARNING] Could not load {article_id_item}, skipping")
+                    stats["skipped"] += 1
+                    pbar.update(1)
+                    continue
+
+                # Validate file has evaluation data and feedback
+                if "evaluation" not in reinfer_analysis or not reinfer_analysis.get("reinfer_feedback"):
+                    print(f"\n[WARNING] {article_id_item} missing evaluation/feedback - needs proper evaluation first")
+                    print(f"          Moving back to raw/ for re-evaluation")
+                    if not dry_run:
+                        # Move back to raw for proper evaluation
+                        reinfer_file = file_writer.reinfer_dir / f"{article_id_item}.json"
+                        raw_file = file_writer.raw_dir / f"{article_id_item}.json"
+                        if reinfer_file.exists() and not raw_file.exists():
+                            import shutil
+                            shutil.move(str(reinfer_file), str(raw_file))
                     stats["skipped"] += 1
                     pbar.update(1)
                     continue
