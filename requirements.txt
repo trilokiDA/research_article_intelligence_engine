@@ -28,3 +28,7 @@ tqdm>=4.66.0
 # numpy>=1.26.4
 # scikit-learn>=1.4.0
 pandas
+
+# Streamlit UI
+streamlit>=1.32.0
+plotly>=5.18.0
