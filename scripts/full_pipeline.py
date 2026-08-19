@@ -164,7 +164,7 @@ class PipelineOrchestrator:
     def stage_2_summarize(
         self,
         limit: Optional[int] = None,
-        model: str = "llama-3.3-70b-versatile",
+        model: str = "openai/gpt-oss-20b",
         batch_size: int = 10
     ) -> int:
         """
@@ -225,7 +225,7 @@ class PipelineOrchestrator:
         self.print_header("STAGE 3: Quality Evaluation")
 
         try:
-            evaluator = SummaryEvaluator(model_name="llama-3.3-70b-versatile")
+            evaluator = SummaryEvaluator(model_name="openai/gpt-oss-20b")
 
             source_path = ANALYSIS_DIR / source_dir
             approved_path = ANALYSIS_DIR / "approved"
@@ -511,7 +511,7 @@ class PipelineOrchestrator:
         if 'summarize' in stages:
             self.stage_2_summarize(
                 limit=limit,
-                model="llama-3.3-70b-versatile",
+                model="openai/gpt-oss-20b",
                 batch_size=10
             )
             time.sleep(1)

@@ -60,8 +60,8 @@ Examples:
     )
     parser.add_argument(
         '--model',
-        default='llama-3.3-70b-versatile',
-        help='Groq model to use (default: llama-3.3-70b-versatile)'
+        default='openai/gpt-oss-20b',
+        help='Groq model to use (default: openai/gpt-oss-20b)'
     )
     parser.add_argument(
         '--batch-size',

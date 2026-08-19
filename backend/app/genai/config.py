@@ -31,32 +31,36 @@ class PipelineConfig:
     RETRY_DELAY = 2.0  # seconds between retries
 
     # ==================== Model Settings ====================
-    DEFAULT_MODEL = "llama-3.3-70b-versatile"
+    DEFAULT_MODEL = "openai/gpt-oss-20b"
     DEFAULT_TEMPERATURE = 0.0  # 0 for consistency, >0 for creativity
     PROMPT_VERSION = "v1"
 
     # Alternative models (for experimentation)
     MODELS = {
-        "llama-3.3-70b": "llama-3.3-70b-versatile",
-        "llama-3.1-8b": "llama-3.1-8b-instant",
-        "mixtral-8x7b": "mixtral-8x7b-32768",
+        "gpt-oss-20b": "openai/gpt-oss-20b",
+        "gpt-oss-120b": "openai/gpt-oss-120b",
+        "compound": "groq/compound",
+        "compound-mini": "groq/compound-mini",
     }
 
     # ==================== Cost Estimation ====================
-    # Groq pricing (as of 2024, approximate)
-    # Update these based on actual pricing from Groq
+    # Groq pricing (updated from API as of 2026)
     MODEL_COSTS = {
-        "llama-3.3-70b-versatile": {
-            "input": 0.59 / 1_000_000,   # $ per token
-            "output": 0.79 / 1_000_000,  # $ per token
+        "openai/gpt-oss-20b": {
+            "input": 0.075 / 1_000_000,   # $ per token
+            "output": 0.30 / 1_000_000,   # $ per token
         },
-        "llama-3.1-8b-instant": {
-            "input": 0.05 / 1_000_000,
-            "output": 0.08 / 1_000_000,
+        "openai/gpt-oss-120b": {
+            "input": 0.15 / 1_000_000,
+            "output": 0.60 / 1_000_000,
         },
-        "mixtral-8x7b-32768": {
-            "input": 0.24 / 1_000_000,
-            "output": 0.24 / 1_000_000,
+        "groq/compound": {
+            "input": 0.0,  # Pricing not specified in API
+            "output": 0.0,
+        },
+        "groq/compound-mini": {
+            "input": 0.0,  # Pricing not specified in API
+            "output": 0.0,
         },
     }
 
@@ -119,7 +123,7 @@ class PipelineConfig:
             alias: Model alias (e.g., "llama-3.3-70b")
 
         Returns:
-            Full model name (e.g., "llama-3.3-70b-versatile")
+            Full model name (e.g., "openai/gpt-oss-20b")
         """
         return PipelineConfig.MODELS.get(alias, alias)
 
@@ -227,14 +231,14 @@ if __name__ == "__main__":
 
     # Test cost calculation
     cost = PipelineConfig.get_model_cost(
-        "llama-3.3-70b-versatile",
+        "openai/gpt-oss-20b",
         input_tokens=1000,
         output_tokens=500
     )
     print(f"\n[COST] Estimated cost for 1000 in + 500 out tokens: ${cost:.6f}")
 
     # Test model alias
-    model = PipelineConfig.get_model_name("llama-3.3-70b")
-    print(f"[MODEL] Alias 'llama-3.3-70b' -> '{model}'")
+    model = PipelineConfig.get_model_name("gpt-oss-20b")
+    print(f"[MODEL] Alias 'gpt-oss-20b' -> '{model}'")
 
     print("\n[OK] Configuration test complete!")

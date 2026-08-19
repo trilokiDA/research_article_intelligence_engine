@@ -44,7 +44,7 @@ def reinfer_summaries(
     limit: Optional[int] = None,
     article_id: Optional[str] = None,
     dry_run: bool = False,
-    model_name: str = "llama-3.3-70b-versatile"
+    model_name: str = "openai/gpt-oss-20b"
 ):
     """Re-infer failed summaries with evaluation feedback."""
     # Import genai modules
@@ -387,7 +387,7 @@ def main():
     parser.add_argument("--max-attempts", type=int, default=3)
     parser.add_argument("--threshold", type=float, default=80.0)
     parser.add_argument("--limit", type=int, default=None)
-    parser.add_argument("--model", type=str, default="llama-3.3-70b-versatile")
+    parser.add_argument("--model", type=str, default="openai/gpt-oss-20b")
     parser.add_argument("--dry-run", action="store_true")
 
     args = parser.parse_args()

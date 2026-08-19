@@ -134,7 +134,7 @@ def __init__(
 **Class:**
 ```python
 class SummaryEvaluator:
-    def __init__(self, model_name: str = "llama-3.3-70b-versatile"):
+    def __init__(self, model_name: str = "openai/gpt-oss-20b"):
         """Initialize evaluator with Groq LLM"""
         
     def evaluate(self, raw_analysis: Dict) -> Dict:

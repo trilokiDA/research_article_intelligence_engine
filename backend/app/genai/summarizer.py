@@ -23,7 +23,7 @@ class ArticleSummarizer:
 
     def __init__(
         self,
-        model_name: str = "llama-3.3-70b-versatile",
+        model_name: str = "openai/gpt-oss-20b",
         temperature: float = 0.0,
         max_retries: int = 3
     ):
@@ -31,7 +31,7 @@ class ArticleSummarizer:
         Initialize the summarizer with Groq LLM.
 
         Args:
-            model_name: Groq model to use (default: llama-3.3-70b-versatile)
+            model_name: Groq model to use (default: openai/gpt-oss-20b)
             temperature: Temperature for generation (default: 0.0 for consistency)
             max_retries: Maximum retries for schema validation failures
         """
@@ -173,7 +173,7 @@ def summarize_article(
     journal: str,
     date: str,
     abstract: str,
-    model_name: str = "llama-3.3-70b-versatile"
+    model_name: str = "openai/gpt-oss-20b"
 ) -> Response:
     """
     Convenience function to summarize a single article.

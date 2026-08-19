@@ -95,7 +95,7 @@ python scripts/load_to_database.py --stats
   "stage": "approved",
   "attempt": 1,
   "processed_at": "2026-08-05T10:58:28.185751",
-  "model": "llama-3.3-70b-versatile",
+  "model": "openai/gpt-oss-20b",
   "source_data": {
     "title": "...",
     "abstract": "...",

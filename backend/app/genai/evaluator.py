@@ -45,7 +45,7 @@ class SummaryEvaluator:
 
     def __init__(
         self,
-        model_name: str = "llama-3.3-70b-versatile",
+        model_name: str = "openai/gpt-oss-20b",
         evaluation_version: str = "v1.0",
         quality_threshold: float = 80.0
     ):

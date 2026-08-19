@@ -177,7 +177,7 @@ class TestFullPipelineIntegration:
         assert raw_file.exists()
 
         # Stage 3: Mock evaluation
-        evaluator = SummaryEvaluator(model="llama-3.3-70b-versatile")
+        evaluator = SummaryEvaluator(model="openai/gpt-oss-20b")
 
         # Mock the LLM call
         with patch.object(evaluator, 'evaluate') as mock_eval:

@@ -138,7 +138,7 @@ Process articles through LLM for structured analysis and summarization.
   - Multiple model support
   - Error handling with retries
 - Models:
-  - `llama-3.3-70b-versatile` (recommended)
+  - `openai/gpt-oss-20b` (recommended)
   - `llama-3.1-8b-instant` (fast)
   - `mixtral-8x7b-32768` (alternative)
 

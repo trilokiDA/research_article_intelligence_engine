@@ -46,7 +46,7 @@ def evaluate_summaries(
     limit: Optional[int] = None,
     article_ids: Optional[List[str]] = None,
     dry_run: bool = False,
-    model_name: str = "llama-3.3-70b-versatile"
+    model_name: str = "openai/gpt-oss-20b"
 ):
     """
     Evaluate summaries and route based on quality score.
@@ -335,8 +335,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="llama-3.3-70b-versatile",
-        help="Groq model for evaluation (default: llama-3.3-70b-versatile)"
+        default="openai/gpt-oss-20b",
+        help="Groq model for evaluation (default: openai/gpt-oss-20b)"
     )
 
     parser.add_argument(

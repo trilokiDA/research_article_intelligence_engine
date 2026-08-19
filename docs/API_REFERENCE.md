@@ -195,8 +195,8 @@ python backend/scripts/run_summarization.py [OPTIONS]
 - `--dry-run` - Process but don't save results (testing)
 
 **Model Configuration:**
-- `--model MODEL` - Groq model to use (default: `llama-3.3-70b-versatile`)
-  - Options: `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `mixtral-8x7b-32768`
+- `--model MODEL` - Groq model to use (default: `openai/gpt-oss-20b`)
+  - Options: `openai/gpt-oss-20b`, `llama-3.1-8b-instant`, `mixtral-8x7b-32768`
 
 **Batch Configuration:**
 - `--batch-size N` - Articles per batch (default: `10`)
@@ -228,7 +228,7 @@ python backend/scripts/run_summarization.py \
 
 # Custom configuration
 python backend/scripts/run_summarization.py \
-    --model llama-3.3-70b-versatile \
+    --model openai/gpt-oss-20b \
     --batch-size 5 \
     --delay 2.0 \
     --limit 50 \
@@ -379,7 +379,7 @@ for article in pending:
 from app.genai.summarizer import ArticleSummarizer
 
 # Initialize
-summarizer = ArticleSummarizer(model="llama-3.3-70b-versatile")
+summarizer = ArticleSummarizer(model="openai/gpt-oss-20b")
 
 # Summarize single article
 result = summarizer.summarize_article(
@@ -409,7 +409,7 @@ from app.genai.pipeline import SummarizationPipeline
 
 # Initialize
 pipeline = SummarizationPipeline(
-    model="llama-3.3-70b-versatile",
+    model="openai/gpt-oss-20b",
     batch_size=10,
     output_format="files",
     analysis_dir="data/analysis/"
@@ -580,7 +580,7 @@ DATABASE_URL=sqlite:///./data/articles.db  # Default
 
 ### GenAI Analysis
 - **Model Speed:**
-  - `llama-3.3-70b-versatile`: ~3-5 seconds/article
+  - `openai/gpt-oss-20b`: ~3-5 seconds/article
   - `llama-3.1-8b-instant`: ~1-2 seconds/article
 - **Throughput:** ~120-600 articles/hour
 - **Bottleneck:** LLM inference time

@@ -116,7 +116,7 @@ python backend/scripts/run_summarization.py --limit 10
 
 # Custom configuration
 python backend/scripts/run_summarization.py \
-    --model llama-3.3-70b-versatile \
+    --model openai/gpt-oss-20b \
     --batch-size 5 \
     --limit 50
 ```
@@ -364,7 +364,7 @@ python backend/scripts/run_summarization.py [OPTIONS]
 
 Options:
   --limit N                 Process max N articles
-  --model MODEL             Groq model (default: llama-3.3-70b-versatile)
+  --model MODEL             Groq model (default: openai/gpt-oss-20b)
   --batch-size N            Articles per batch (default: 10)
   --dry-run                 Process but don't save
 ```
@@ -439,7 +439,7 @@ data/analysis/
 
 ### Available Models
 
-- `llama-3.3-70b-versatile` - **Recommended** (best quality)
+- `openai/gpt-oss-20b` - **Recommended** (best quality)
 - `llama-3.1-8b-instant` - Fast (lower quality)
 - `mixtral-8x7b-32768` - Alternative
 

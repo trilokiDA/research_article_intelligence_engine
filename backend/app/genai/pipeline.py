@@ -28,7 +28,7 @@ class SummarizationPipeline:
 
     def __init__(
         self,
-        model_name: str = "llama-3.3-70b-versatile",
+        model_name: str = "openai/gpt-oss-20b",
         batch_size: int = 10,
         max_retries: int = 3,
         delay_between_batches: float = 1.0,

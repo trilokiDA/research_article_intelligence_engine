@@ -40,7 +40,7 @@ def evaluate_summaries(
     limit: Optional[int] = None,
     article_ids: Optional[List[str]] = None,
     dry_run: bool = False,
-    model_name: str = "llama-3.3-70b-versatile"
+    model_name: str = "openai/gpt-oss-20b"
 ):
     """Evaluate summaries and route based on quality score."""
     # Import genai modules
@@ -298,7 +298,7 @@ def main():
     parser.add_argument("--threshold", type=float, default=80.0)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--article-ids", type=str, default=None)
-    parser.add_argument("--model", type=str, default="llama-3.3-70b-versatile")
+    parser.add_argument("--model", type=str, default="openai/gpt-oss-20b")
     parser.add_argument("--dry-run", action="store_true")
 
     args = parser.parse_args()

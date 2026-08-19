@@ -65,7 +65,7 @@ Located in: `backend/app/genai/evaluator.py`
 from backend.app.genai.evaluator import SummaryEvaluator
 
 evaluator = SummaryEvaluator(
-    model_name="llama-3.3-70b-versatile",
+    model_name="openai/gpt-oss-20b",
     evaluation_version="v1.0",
     quality_threshold=80.0  # 0-100
 )
@@ -108,7 +108,7 @@ result = evaluator.evaluate(raw_analysis)
         "evaluated_at": "2026-07-31T10:30:00"
     },
     "metadata": {
-        "evaluator_model": "llama-3.3-70b-versatile",
+        "evaluator_model": "openai/gpt-oss-20b",
         "evaluation_version": "v1.0",
         "processing_time_ms": 1952,
         "tokens_used": 0,
@@ -382,7 +382,7 @@ Summary meets quality standards. No issues found.
 
 **Processing Time:**
 - Average: ~2-3 seconds per summary
-- Model: llama-3.3-70b-versatile
+- Model: openai/gpt-oss-20b
 
 **Evaluation Steps:**
 1. Quality Scoring: ~500ms
