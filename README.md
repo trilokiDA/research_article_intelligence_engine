@@ -4,9 +4,9 @@ AI-powered platform for collecting, analyzing, and summarizing scientific resear
 
 ## 🎯 Current Status
 
-**Version:** 1.1 (5-Stage Pipeline)  
-**What Works:** PubMed ingestion, GenAI summarization, evaluation pipeline, re-inference workflow  
-**Architecture:** Raw → Evaluate → Approved/Re-infer → Re-evaluate → Approved/Rejected
+**Version:** 1.2 (6-Stage Pipeline + RAG)  
+**What Works:** PubMed ingestion, GenAI summarization, evaluation pipeline, re-inference workflow, RAG Q&A  
+**Architecture:** Raw → Evaluate → Approved/Re-infer → Re-evaluate → Approved/Rejected → RAG Index
 
 ## Features
 
@@ -18,6 +18,7 @@ AI-powered platform for collecting, analyzing, and summarizing scientific resear
 - 🔄 **Re-inference Loop** - Failed summaries are re-generated with feedback (max 3 attempts)
 - 🔍 **Full-Text Search** - SQLite FTS5 for fast article search
 - 🎯 **Smart Filtering** - Skip already-analyzed articles automatically
+- 💬 **RAG Q&A System** - Ask questions about your research corpus in natural language with source citations
 
 ## Quick Start
 
@@ -164,7 +165,37 @@ python scripts/load_to_database.py --article-id PMID001 PMID002
 
 **Database Load:** Approved summaries → `article_analysis` table → `loaded/` (archive)
 
-### 6. Check Status
+### 6. Build RAG Index (NEW - Stage 6)
+
+Index analyzed articles for semantic Q&A:
+
+```bash
+# Build vector index from analyzed articles
+python scripts/build_rag_index.py
+
+# Check index stats
+python scripts/build_rag_index.py --stats
+
+# Rebuild entire index
+python scripts/build_rag_index.py --rebuild
+```
+
+**Output:** Vector embeddings stored in `data/chroma/`
+
+### 7. Launch Interactive UI
+
+```bash
+# Streamlit app with RAG chat interface
+streamlit run streamlit_app_with_rag.py
+```
+
+**Features:**
+- 📊 Dashboard with statistics and charts
+- 🔍 Article browser with advanced filters
+- 💬 RAG chat sidebar - Ask questions about your corpus
+- 📚 Source citations with article IDs
+
+### 8. Check Status
 
 ```bash
 # View database statistics
@@ -176,6 +207,9 @@ python ingest_cli.py pending --limit 10
 # View analyzed articles
 python view_data.py --stats
 python view_data.py --format detailed --limit 10
+
+# Test RAG system
+python scripts/test_rag.py
 ```
 
 ## Usage Examples
@@ -648,7 +682,9 @@ radar/
 │   ├── full_pipeline.py              # Complete workflow orchestrator
 │   ├── evaluate_summaries.py         # Stage 3: Quality evaluation
 │   ├── reinfer_summaries.py          # Stage 4: Re-inference workflow
-│   └── load_to_database.py           # Stage 5: Database load
+│   ├── load_to_database.py           # Stage 5: Database load
+│   ├── build_rag_index.py            # Stage 6: RAG indexing
+│   └── test_rag.py                   # RAG system test
 ├── tests/
 │   ├── test_integration.py           # Integration tests (full pipeline)
 │   ├── test_genai.py                 # GenAI unit tests
@@ -656,6 +692,7 @@ radar/
 │   └── test_pubmed.py                # PubMed ingestion tests
 ├── data/
 │   ├── articles.db                   # SQLite database
+│   ├── chroma/                       # Vector database (RAG index)
 │   └── analysis/
 │       ├── raw/                      # Stage 2 output
 │       ├── approved/                 # Passed quality gate
@@ -663,17 +700,23 @@ radar/
 │       ├── rejected/                 # Failed max attempts
 │       ├── loaded/                   # Archived after DB load
 │       └── summarized/               # Legacy
+├── backend/app/rag/
+│   ├── query_service.py              # RAG retrieval and generation
+│   └── __init__.py
 ├── docs/
 │   ├── GENAI_PIPELINE.md            # GenAI implementation
 │   ├── EVALUATOR_MODULE.md          # Evaluation pipeline
 │   ├── STAGE_5_DATABASE_LOAD.md     # Database load documentation
 │   ├── MIGRATION_TO_5_STAGE.md      # Migration plan
 │   └── SCHEMA_REFERENCE.md          # Database schema
+├── RAG_QUICKSTART.md                # RAG setup and usage guide
+├── streamlit_app_with_rag.py        # Streamlit UI with RAG chat
 └── README.md                        # This file
 ```
 
 ## Documentation
 
+- **RAG Quick Start:** [RAG_QUICKSTART.md](RAG_QUICKSTART.md) ⭐ **NEW**
 - **GenAI Pipeline:** [docs/GENAI_PIPELINE.md](docs/GENAI_PIPELINE.md)
 - **Evaluation Module:** [docs/EVALUATOR_MODULE.md](docs/EVALUATOR_MODULE.md)
 - **Stage 5 Database Load:** [docs/STAGE_5_DATABASE_LOAD.md](docs/STAGE_5_DATABASE_LOAD.md)
@@ -684,7 +727,7 @@ radar/
 
 ## Roadmap
 
-### Current (v1.1) ✅
+### Current (v1.2) ✅
 - PubMed ingestion with topic queries
 - Complete 5-stage quality-controlled pipeline
 - GenAI summarization with structured output
@@ -692,13 +735,15 @@ radar/
 - Re-inference workflow with feedback loop
 - Automated quality routing (approved/reinfer/rejected)
 - Database load with archiving and idempotency
+- **RAG Q&A system with semantic search** ⭐ **NEW**
+- **Interactive Streamlit UI with chat interface** ⭐ **NEW**
 
 ### Planned (v2.0)
-- Advanced RAG Q&A across corpus
+- Hybrid search (semantic + keyword FTS5)
 - Citation network analysis
 - Multi-document synthesis
-- Interactive web UI
-- Real-time monitoring
+- FastAPI REST API for RAG
+- Real-time monitoring dashboard
 
 See [ROADMAP.md](ROADMAP.md) for detailed future plans.
 

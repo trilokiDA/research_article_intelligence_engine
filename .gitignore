@@ -51,6 +51,9 @@ logs/
 *.sqlite
 *.sqlite3
 
+# Bin
+*.bin
+
 # Cache
 .cache/
 .pytest_cache/

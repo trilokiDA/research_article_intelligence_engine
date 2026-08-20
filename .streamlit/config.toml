@@ -1,0 +1,18 @@
+[server]
+# Disable file watcher to avoid transformers module warnings
+fileWatcherType = "none"
+
+# Port configuration
+port = 8501
+
+[client]
+# Show error details
+showErrorDetails = true
+
+[runner]
+# Faster rerun
+fastReruns = true
+
+[logger]
+# Reduce log level to suppress module import warnings
+level = "error"

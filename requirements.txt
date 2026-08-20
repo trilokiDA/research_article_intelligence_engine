@@ -21,8 +21,9 @@ tqdm>=4.66.0
 # uvicorn[standard]>=0.27.0
 # pydantic>=2.6.0
 
-# Optional: Uncomment for vector embeddings
-# sentence-transformers>=2.5.1
+# Vector embeddings and RAG
+chromadb>=0.4.22
+sentence-transformers>=2.5.1
 
 # Optional: Uncomment for full ML stack
 # numpy>=1.26.4
