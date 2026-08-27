@@ -41,6 +41,7 @@ class AnalysisDatabaseLoader:
         """
         self.base_dir = Path(base_dir)
         self.approved_dir = self.base_dir / "approved"
+        self.rejected_dir = self.base_dir / "rejected"
         self.archive_dir = self.base_dir / "loaded"
 
         # Create archive directory if it doesn't exist
@@ -76,12 +77,13 @@ class AnalysisDatabaseLoader:
         result = cursor.fetchone()
         return result['id'] if result else None
 
-    def transform_json_to_record(self, json_data: Dict[str, Any]) -> Dict[str, Any]:
+    def transform_json_to_record(self, json_data: Dict[str, Any], is_rejected: bool = False) -> Dict[str, Any]:
         """
-        Transform approved JSON file to database record format.
+        Transform approved or rejected JSON file to database record format.
 
         Args:
-            json_data: Loaded JSON data from approved file
+            json_data: Loaded JSON data from approved/rejected file
+            is_rejected: True if loading from rejected directory
 
         Returns:
             Dictionary with database column names and values
@@ -116,9 +118,12 @@ class AnalysisDatabaseLoader:
             'entity_consistency': evaluation.get('entity_consistency', True),
             'claim_evaluations': evaluation.get('claim_evaluations', []),
             'feedback': evaluation.get('feedback', ''),
-            'passed': evaluation.get('passed', True),
+            'passed': evaluation.get('passed', True if not is_rejected else False),
             'evaluated_at': evaluation.get('evaluated_at', '')
         })
+
+        # Determine analysis status
+        analysis_status = 'rejected' if is_rejected else 'completed'
 
         # Build database record
         record = {
@@ -133,12 +138,13 @@ class AnalysisDatabaseLoader:
             'model_id': metadata.get('model_id', 'unknown'),
             'prompt_version': metadata.get('prompt_version', 'v1'),
             'analyzed_at': json_data.get('processed_at', datetime.now().isoformat()),
-            'analysis_status': 'completed',
+            'analysis_status': analysis_status,
             'evaluation_score': evaluation_score,
             'evaluation_metadata': evaluation_metadata,
-            'stage': json_data.get('stage', 'approved'),
+            'stage': json_data.get('stage', 'rejected' if is_rejected else 'approved'),
             'attempt': json_data.get('attempt', 1),
-            'loaded_at': datetime.now().isoformat()
+            'loaded_at': datetime.now().isoformat(),
+            'rejection_reason': json_data.get('rejection_reason', None) if is_rejected else None
         }
 
         return record
@@ -147,15 +153,17 @@ class AnalysisDatabaseLoader:
         self,
         file_path: Path,
         conn: sqlite3.Connection,
-        dry_run: bool = False
+        dry_run: bool = False,
+        is_rejected: bool = False
     ) -> Tuple[bool, Optional[str]]:
         """
-        Load a single approved JSON file to database.
+        Load a single approved or rejected JSON file to database.
 
         Args:
             file_path: Path to JSON file
             conn: Database connection
             dry_run: If True, validate but don't commit
+            is_rejected: True if loading from rejected directory
 
         Returns:
             Tuple of (success: bool, error_message: Optional[str])
@@ -175,7 +183,7 @@ class AnalysisDatabaseLoader:
                 return False, f"Article {article_id} not found in articles table (orphaned analysis)"
 
             # Transform to database record
-            record = self.transform_json_to_record(json_data)
+            record = self.transform_json_to_record(json_data, is_rejected=is_rejected)
 
             if dry_run:
                 # Dry run: just validate, don't insert
@@ -207,7 +215,8 @@ class AnalysisDatabaseLoader:
                         evaluation_metadata = ?,
                         stage = ?,
                         attempt = ?,
-                        loaded_at = ?
+                        loaded_at = ?,
+                        rejection_reason = ?
                     WHERE article_id = ?
                 """, (
                     record['subject'],
@@ -225,6 +234,7 @@ class AnalysisDatabaseLoader:
                     record['stage'],
                     record['attempt'],
                     record['loaded_at'],
+                    record['rejection_reason'],
                     article_uuid
                 ))
                 self.stats['updated'] += 1
@@ -235,8 +245,9 @@ class AnalysisDatabaseLoader:
                         id, article_id, subject, category, summary,
                         entities, sentiment, industry_affiliation,
                         model_id, prompt_version, analyzed_at, analysis_status,
-                        evaluation_score, evaluation_metadata, stage, attempt, loaded_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        evaluation_score, evaluation_metadata, stage, attempt, loaded_at,
+                        rejection_reason
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     record['id'],
                     article_uuid,  # Use UUID for foreign key reference
@@ -254,17 +265,19 @@ class AnalysisDatabaseLoader:
                     record['evaluation_metadata'],
                     record['stage'],
                     record['attempt'],
-                    record['loaded_at']
+                    record['loaded_at'],
+                    record['rejection_reason']
                 ))
                 self.stats['loaded'] += 1
 
-            # Update articles table: mark this article as analyzed
+            # Update articles table: mark status based on rejection
+            analysis_status = 'rejected' if is_rejected else 'analyzed'
             cursor.execute("""
                 UPDATE articles
-                SET analysis_status = 'analyzed',
+                SET analysis_status = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            """, (article_uuid,))
+            """, (analysis_status, article_uuid))
 
             conn.commit()
             return True, None
@@ -342,7 +355,70 @@ class AnalysisDatabaseLoader:
         # Process files
         with get_db() as conn:
             for file_path in files:
-                success, error = self.load_single_file(file_path, conn, dry_run)
+                success, error = self.load_single_file(file_path, conn, dry_run, is_rejected=False)
+
+                if success:
+                    # Archive if requested and not dry run
+                    if archive and not dry_run:
+                        self.archive_file(file_path)
+                else:
+                    self.stats['errors'] += 1
+                    self.stats['error_details'].append({
+                        'file': file_path.name,
+                        'error': error
+                    })
+
+        return self.stats
+
+    def load_rejected_files(
+        self,
+        article_ids: Optional[List[str]] = None,
+        limit: Optional[int] = None,
+        dry_run: bool = False,
+        archive: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Load all rejected files (or specific article IDs) to database.
+
+        Args:
+            article_ids: Optional list of specific article IDs to load
+            limit: Maximum number of files to load
+            dry_run: If True, validate but don't commit to database
+            archive: If True, move loaded files to archive directory
+
+        Returns:
+            Dictionary with statistics and results
+        """
+        # Reset statistics
+        self.stats = {
+            'total_files': 0,
+            'loaded': 0,
+            'updated': 0,
+            'skipped': 0,
+            'errors': 0,
+            'error_details': []
+        }
+
+        # Find files to load
+        if article_ids:
+            files = [self.rejected_dir / f"{aid}.json" for aid in article_ids]
+            files = [f for f in files if f.exists()]
+        else:
+            files = list(self.rejected_dir.glob("*.json"))
+
+        # Apply limit
+        if limit:
+            files = files[:limit]
+
+        self.stats['total_files'] = len(files)
+
+        if not files:
+            return self.stats
+
+        # Process files
+        with get_db() as conn:
+            for file_path in files:
+                success, error = self.load_single_file(file_path, conn, dry_run, is_rejected=True)
 
                 if success:
                     # Archive if requested and not dry run

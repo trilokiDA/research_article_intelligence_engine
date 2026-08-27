@@ -101,6 +101,7 @@ def init_db():
             stage TEXT,
             attempt INTEGER DEFAULT 1,
             loaded_at DATETIME,
+            rejection_reason TEXT,
             FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE
         )
     """)
@@ -179,6 +180,14 @@ def migrate_db():
             migrations_applied.append("loaded_at")
         except Exception as e:
             print(f"[WARNING] Could not add loaded_at: {e}")
+
+    # Add rejection_reason column if missing
+    if 'rejection_reason' not in columns:
+        try:
+            conn.execute("ALTER TABLE article_analysis ADD COLUMN rejection_reason TEXT")
+            migrations_applied.append("rejection_reason")
+        except Exception as e:
+            print(f"[WARNING] Could not add rejection_reason: {e}")
 
     # Create new indexes if they don't exist
     try:

@@ -16,9 +16,11 @@ AI-powered platform for collecting, analyzing, and summarizing scientific resear
 - 📊 **Structured Data** - Entity extraction, sentiment analysis, and categorization
 - ✅ **Quality Evaluation** - Automated evaluation with factual accuracy checks, hallucination detection, and people-first language validation
 - 🔄 **Re-inference Loop** - Failed summaries are re-generated with feedback (max 3 attempts)
+- ❌ **Rejection Tracking** - Track rejected articles with reasons and attempt counts for quality analytics
 - 🔍 **Full-Text Search** - SQLite FTS5 for fast article search
 - 🎯 **Smart Filtering** - Skip already-analyzed articles automatically
 - 💬 **RAG Q&A System** - Ask questions about your research corpus in natural language with source citations
+- 📈 **Analytics Dashboard** - Monitor success rates, rejection patterns, and quality trends
 
 ## Quick Start
 
@@ -63,7 +65,7 @@ python ingest_cli.py init
 
 This creates `data/articles.db` with:
 - `articles` - Raw article metadata from ingestion
-- `article_analysis` - GenAI analysis results
+- `article_analysis` - GenAI analysis results (includes completed and rejected articles)
 - `articles_fts` - Full-text search index
 
 ### 4. Ingest Articles
@@ -153,6 +155,9 @@ python scripts/reinfer_summaries.py --dry-run
 # Load all approved summaries to database
 python scripts/load_to_database.py
 
+# Load rejected articles (for tracking and analytics)
+python scripts/load_to_database.py --source rejected
+
 # Load and archive source files
 python scripts/load_to_database.py --archive
 
@@ -163,7 +168,9 @@ python scripts/load_to_database.py --dry-run
 python scripts/load_to_database.py --article-id PMID001 PMID002
 ```
 
-**Database Load:** Approved summaries → `article_analysis` table → `loaded/` (archive)
+**Database Load:** 
+- Approved summaries → `article_analysis` table (status='completed') → `loaded/` (archive)
+- Rejected articles → `article_analysis` table (status='rejected') for tracking and analytics
 
 ### 6. Build RAG Index (NEW - Stage 6)
 
@@ -190,10 +197,11 @@ streamlit run streamlit_app_with_rag.py
 ```
 
 **Features:**
-- 📊 Dashboard with statistics and charts
-- 🔍 Article browser with advanced filters
+- 📊 Dashboard with statistics and charts (including rejection metrics)
+- 🔍 Article browser with advanced filters (filter by analysis status)
 - 💬 RAG chat sidebar - Ask questions about your corpus
 - 📚 Source citations with article IDs
+- ❌ Rejection tracking - View rejected articles with reasons and attempt counts
 
 ### 8. Check Status
 
@@ -211,6 +219,29 @@ python view_data.py --format detailed --limit 10
 # Test RAG system
 python scripts/test_rag.py
 ```
+
+### 9. View Rejected Articles (Optional)
+
+Track rejected articles for quality monitoring and analytics:
+
+```bash
+# Load rejected articles to database
+python scripts/load_to_database.py --source rejected
+
+# Or use the dedicated migration script
+python scripts/migrate_rejected_articles.py
+
+# View in Streamlit Dashboard
+# - Dashboard shows "Rejected" metric and "Rejection Reasons" chart
+# - Article Browser: Filter by "Analysis Status" = "rejected"
+# - See rejection reason, attempt count, and all article metadata
+```
+
+**Benefits of tracking rejected articles:**
+- Monitor success/rejection rates over time
+- Identify patterns in failures (by journal, topic, etc.)
+- Track which articles need reprocessing when prompts improve
+- Complete audit trail for all articles processed
 
 ## Usage Examples
 
@@ -249,8 +280,11 @@ python scripts/evaluate_summaries.py --source raw
 # Step 4: Re-infer failed summaries (Stage 4)
 python scripts/reinfer_summaries.py
 
-# Step 5: Load to database (Stage 5)
+# Step 5: Load approved to database (Stage 5)
 python scripts/load_to_database.py --archive
+
+# Optional: Load rejected articles for tracking
+python scripts/load_to_database.py --source rejected
 
 # Step 6: Check results
 python ingest_cli.py stats
@@ -432,12 +466,20 @@ Options:
 python scripts/load_to_database.py [OPTIONS]
 
 Options:
+  --source SOURCE           'approved' or 'rejected' (default: approved)
   --article-id ID [ID...]   Load specific article IDs
   --limit N                 Process max N files
   --dry-run                 Validate without committing to database
   --archive                 Move loaded files to archive directory
   --migrate-only            Only migrate database schema
   --stats                   Show database statistics
+
+Examples:
+  # Load approved articles
+  python scripts/load_to_database.py
+  
+  # Load rejected articles for tracking
+  python scripts/load_to_database.py --source rejected
 ```
 
 ## GenAI Pipeline (5-Stage Architecture)
@@ -457,7 +499,8 @@ Load from `raw/` → Evaluate (factual accuracy, hallucination, people-first lan
 Load from `reinfer/` → Re-run with feedback → Re-evaluate → Route: Pass → `approved/`, Fail (3x) → `rejected/`
 
 **Stage 5: Database Load**  
-Load from `approved/` → Transform JSON to SQL → Insert/update `article_analysis` table → Archive to `loaded/`
+- Load from `approved/` → Transform JSON to SQL → Insert/update `article_analysis` table (status='completed') → Archive to `loaded/`
+- Load from `rejected/` → Transform JSON to SQL → Insert/update `article_analysis` table (status='rejected') for tracking
 
 ### File Structure
 
@@ -525,7 +568,7 @@ CREATE TABLE articles (
 ```
 
 ### `article_analysis` table
-Stores GenAI analysis results (populated by GenAI pipeline).
+Stores GenAI analysis results (populated by GenAI pipeline). Includes both completed and rejected articles for tracking.
 
 ```sql
 CREATE TABLE article_analysis (
@@ -537,11 +580,18 @@ CREATE TABLE article_analysis (
     entities TEXT,                     -- JSON array of EntityEnum
     sentiment TEXT,                    -- SentimentEnum
     industry_affiliation TEXT,
-    analysis_status TEXT,              -- pending, completed, failed
+    analysis_status TEXT,              -- pending/completed/rejected/failed
     analyzed_at DATETIME,
+    evaluation_score REAL,             -- Quality score (0-100)
+    stage TEXT,                        -- Pipeline stage
+    attempt INTEGER DEFAULT 1,         -- Retry count
+    rejection_reason TEXT,             -- Reason for rejection (if rejected)
+    loaded_at DATETIME,                -- DB load timestamp
     FOREIGN KEY (article_id) REFERENCES articles(id)
 );
 ```
+
+**Note:** Rejected articles are tracked in `article_analysis` with `status='rejected'` for analytics and quality monitoring.
 
 ## Python API
 
