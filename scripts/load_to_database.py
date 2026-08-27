@@ -148,13 +148,19 @@ Examples:
     print("\n[STEP 2] Initializing database loader...")
     loader = AnalysisDatabaseLoader()
 
-    # Count available files
-    approved_files = list(loader.approved_dir.glob("*.json"))
-    print(f"  Found {len(approved_files)} approved files")
+    # Count available files based on source
+    if args.source == 'approved':
+        source_files = list(loader.approved_dir.glob("*.json"))
+        print(f"  Found {len(source_files)} approved files")
+        source_dir = loader.approved_dir
+    else:  # rejected
+        source_files = list(loader.rejected_dir.glob("*.json"))
+        print(f"  Found {len(source_files)} rejected files")
+        source_dir = loader.rejected_dir
 
-    if not approved_files:
-        print("\n[WARNING] No approved files found. Run Stage 3 evaluation first.")
-        print(f"  Expected directory: {loader.approved_dir}")
+    if not source_files:
+        print(f"\n[WARNING] No {args.source} files found. Run Stage 3 evaluation first.")
+        print(f"  Expected directory: {source_dir}")
         return 1
 
     # Show dry run notice
@@ -162,7 +168,7 @@ Examples:
         print("\n[DRY RUN MODE] Validating files without committing to database")
 
     # Load files
-    print("\n[STEP 3] Loading files to database...")
+    print(f"\n[STEP 3] Loading {args.source} files to database...")
     if args.article_id:
         print(f"  Target articles: {', '.join(args.article_id)}")
     if args.limit:
@@ -170,12 +176,21 @@ Examples:
     if args.archive:
         print(f"  Archive: Enabled (files will be moved to {loader.archive_dir})")
 
-    stats = loader.load_approved_files(
-        article_ids=args.article_id,
-        limit=args.limit,
-        dry_run=args.dry_run,
-        archive=args.archive
-    )
+    # Load based on source type
+    if args.source == 'approved':
+        stats = loader.load_approved_files(
+            article_ids=args.article_id,
+            limit=args.limit,
+            dry_run=args.dry_run,
+            archive=args.archive
+        )
+    else:  # rejected
+        stats = loader.load_rejected_files(
+            article_ids=args.article_id,
+            limit=args.limit,
+            dry_run=args.dry_run,
+            archive=args.archive
+        )
 
     # Print summary
     print(loader.get_load_summary())

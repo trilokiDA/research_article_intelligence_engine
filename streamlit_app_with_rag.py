@@ -139,6 +139,12 @@ def get_stats():
         conn
     ).iloc[0]['count']
 
+    # Rejected articles
+    rejected_count = pd.read_sql_query(
+        "SELECT COUNT(*) as count FROM article_analysis WHERE analysis_status = 'rejected'",
+        conn
+    ).iloc[0]['count']
+
     # Pending analysis
     pending_count = pd.read_sql_query(
         """SELECT COUNT(*) as count FROM articles a
@@ -181,23 +187,45 @@ def get_stats():
         conn
     )
 
+    # Analysis status distribution
+    analysis_status = pd.read_sql_query(
+        """SELECT analysis_status, COUNT(*) as count
+           FROM article_analysis
+           WHERE analysis_status IS NOT NULL
+           GROUP BY analysis_status""",
+        conn
+    )
+
+    # Rejection reasons
+    rejection_reasons = pd.read_sql_query(
+        """SELECT rejection_reason, COUNT(*) as count
+           FROM article_analysis
+           WHERE analysis_status = 'rejected' AND rejection_reason IS NOT NULL
+           GROUP BY rejection_reason""",
+        conn
+    )
+
     return {
         'total': total_articles,
         'analyzed': analyzed_count,
+        'rejected': rejected_count,
         'pending': pending_count,
         'by_date': articles_by_date,
         'sources': sources,
         'categories': categories,
-        'sentiments': sentiments
+        'sentiments': sentiments,
+        'analysis_status': analysis_status,
+        'rejection_reasons': rejection_reasons
     }
 
 # Get articles with optional filters
 @st.cache_data(ttl=60)
 def get_articles(search_query=None, source_filter=None, date_from=None, date_to=None,
-                 category_filter=None, sentiment_filter=None, subject_filter=None, limit=50):
+                 category_filter=None, sentiment_filter=None, subject_filter=None,
+                 analysis_status_filter=None, limit=50):
     conn = get_db_connection()
 
-    # Base query with all analysis fields
+    # Base query with all analysis fields including rejection_reason
     query = """
         SELECT
             a.id,
@@ -220,7 +248,8 @@ def get_articles(search_query=None, source_filter=None, date_from=None, date_to=
             aa.industry_affiliation,
             aa.evaluation_score,
             aa.stage,
-            aa.attempt
+            aa.attempt,
+            aa.rejection_reason
         FROM articles a
         LEFT JOIN article_analysis aa ON a.id = aa.article_id
         WHERE 1=1
@@ -263,6 +292,14 @@ def get_articles(search_query=None, source_filter=None, date_from=None, date_to=
     if subject_filter and subject_filter != "All":
         query += " AND aa.subject = ?"
         params.append(subject_filter)
+
+    # Analysis status filter
+    if analysis_status_filter and analysis_status_filter != "All":
+        if analysis_status_filter == "Not Analyzed":
+            query += " AND aa.id IS NULL"
+        else:
+            query += " AND aa.analysis_status = ?"
+            params.append(analysis_status_filter.lower())
 
     query += " ORDER BY a.publication_date DESC, a.ingested_at DESC LIMIT ?"
     params.append(limit)
@@ -473,23 +510,26 @@ def show_dashboard():
         stats = get_stats()
 
     # Key metrics
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
         st.metric("Total Articles", stats['total'])
 
     with col2:
-        st.metric("Analyzed", stats['analyzed'])
+        st.metric("Analyzed", stats['analyzed'], delta=None, delta_color="normal")
 
     with col3:
-        st.metric("Pending Analysis", stats['pending'])
+        st.metric("Rejected", stats['rejected'], delta=None, delta_color="inverse")
 
     with col4:
+        st.metric("Pending Analysis", stats['pending'])
+
+    with col5:
         if stats['total'] > 0:
             completion_rate = (stats['analyzed'] / stats['total']) * 100
-            st.metric("Completion Rate", f"{completion_rate:.1f}%")
+            st.metric("Success Rate", f"{completion_rate:.1f}%")
         else:
-            st.metric("Completion Rate", "0%")
+            st.metric("Success Rate", "0%")
 
     # Charts
     st.divider()
@@ -523,6 +563,35 @@ def show_dashboard():
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("No analysis data yet")
+
+    # Analysis Status and Rejection Reasons
+    st.divider()
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Analysis Status")
+        if not stats['analysis_status'].empty:
+            fig = px.bar(stats['analysis_status'], x='analysis_status', y='count',
+                        title='Analysis Status Breakdown',
+                        color='analysis_status',
+                        color_discrete_map={
+                            'completed': '#28a745',
+                            'rejected': '#dc3545',
+                            'pending': '#ffc107'
+                        })
+            fig.update_layout(xaxis_title="Status", yaxis_title="Count", showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No analysis data yet")
+
+    with col2:
+        st.subheader("Rejection Reasons")
+        if not stats['rejection_reasons'].empty and len(stats['rejection_reasons']) > 0:
+            fig = px.pie(stats['rejection_reasons'], values='count', names='rejection_reason',
+                        title='Why Articles Were Rejected')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No rejected articles")
 
     # Publications timeline
     st.divider()
@@ -595,11 +664,9 @@ def show_article_browser():
 
         limit = st.slider("Results Limit", 10, 200, 50, 10)
 
-        status_filter = st.multiselect(
-            "Analysis Status",
-            ["completed", "pending", "failed"],
-            default=["completed", "pending"]
-        )
+        # Analysis status filter
+        analysis_status_options = ["All", "completed", "rejected", "pending", "Not Analyzed"]
+        analysis_status_filter = st.selectbox("Analysis Status", analysis_status_options)
 
     # Load articles
     with st.spinner("Loading articles..."):
@@ -611,13 +678,9 @@ def show_article_browser():
             category_filter=category_filter,
             sentiment_filter=sentiment_filter,
             subject_filter=subject_filter,
+            analysis_status_filter=analysis_status_filter,
             limit=limit
         )
-
-    # Filter by analysis status
-    if not df.empty and status_filter:
-        df['analysis_status'] = df['analysis_status'].fillna('pending')
-        df = df[df['analysis_status'].isin(status_filter)]
 
     # Display results
     st.subheader(f"Results ({len(df)} articles)")
@@ -643,13 +706,20 @@ def show_article_browser():
             with col3:
                 status = row['analysis_status'] or 'pending'
                 status_color = {
-                    'completed': '🟢',
+                    'completed': '✅',
+                    'rejected': '❌',
                     'pending': '🟡',
                     'failed': '🔴'
                 }.get(status, '⚪')
                 st.write(f"**Status:** {status_color} {status}")
                 if pd.notna(row['analyzed_at']):
                     st.write(f"**Analyzed:** {str(row['analyzed_at'])[:10]}")
+                if pd.notna(row.get('attempt')) and row.get('attempt', 1) > 1:
+                    st.write(f"**Attempts:** {int(row['attempt'])}")
+
+            # Show rejection reason if rejected
+            if status == 'rejected' and pd.notna(row.get('rejection_reason')):
+                st.warning(f"**⚠️ Rejection Reason:** {row['rejection_reason']}")
 
             # Abstract
             st.divider()
